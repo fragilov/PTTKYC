@@ -3,8 +3,12 @@ package com.linhkien;
 import com.linhkien.config.DatabaseConnection;
 import com.linhkien.config.DatabaseInitializer;
 import com.linhkien.model.ChiTietGioHang;
+import com.linhkien.model.DonHang;
 import com.linhkien.model.GioHang;
+import com.linhkien.model.LichSuTrangThaiDon;
 import com.linhkien.model.LinhKien;
+import com.linhkien.model.VanChuyen;
+import com.linhkien.service.DonHangService;
 import com.linhkien.service.GioHangService;
 import com.linhkien.service.LinhKienService;
 
@@ -15,6 +19,8 @@ import java.util.List;
  * Lớp kiểm thử tự động toàn diện các chức năng nghiệp vụ của hệ thống:
  * 1. Quản lý linh kiện: Thêm, Sửa, Xóa, Tìm kiếm, Cảnh báo tồn thấp.
  * 2. Quản lý giỏ hàng: Thêm vào giỏ, Kiểm tra tồn kho, Cập nhật số lượng, Tính tổng tiền, Xóa.
+ * 3. Đặt hàng và quản lý đơn hàng: Tạo đơn từ giỏ, trừ tồn kho, Transaction, chống trùng đơn,
+ *    luồng trạng thái vận chuyển, hủy đơn hoàn kho, phân quyền khách hàng / nhân viên.
  */
 public class AppTest {
 
@@ -31,10 +37,12 @@ public class AppTest {
 
         LinhKienService linhKienService = new LinhKienService();
         GioHangService gioHangService = new GioHangService();
+        DonHangService donHangService = new DonHangService();
 
         testKetNoiCSDL();
         testQuanLyLinhKien(linhKienService);
         testQuanLyGioHang(linhKienService, gioHangService);
+        testDatHangVaQuanLyDon(linhKienService, gioHangService, donHangService);
 
         System.out.println("\n=========================================================================");
         System.out.printf("  KẾT QUẢ KIỂM THỬ: %d THÀNH CÔNG, %d THẤT BẠI\n", totalPassed, totalFailed);
@@ -188,6 +196,234 @@ public class AppTest {
         // 9. Nạp lại 2 món mẫu vào giỏ hàng để phục vụ trải nghiệm người dùng
         ghService.themVaoGio(userId, 1, 2); // 2 x Arduino Uno R3
         ghService.themVaoGio(userId, 4, 3); // 3 x DHT11
+    }
+
+    @FunctionalInterface
+    private interface HanhDong {
+        void chay() throws Exception;
+    }
+
+    /**
+     * Chạy hành động và trả về lớp ngoại lệ được ném ra (null nếu không có lỗi).
+     */
+    private static Class<? extends Exception> batLoi(HanhDong hanhDong) {
+        try {
+            hanhDong.chay();
+            return null;
+        } catch (Exception e) {
+            return e.getClass();
+        }
+    }
+
+    private static void themDonMau(GioHangService ghService, int userId, int maLinhKien, int soLuong) {
+        ghService.themVaoGio(userId, maLinhKien, soLuong);
+    }
+
+    private static void testDatHangVaQuanLyDon(LinhKienService lkService, GioHangService ghService, DonHangService dhService) {
+        System.out.println("\n--- [TEST 4] Kiểm tra Đặt hàng, Quản lý đơn hàng và Vận chuyển ---");
+
+        final int khach = 1;
+        final int khachKhac = 3; // Người dùng khác (không phải chủ đơn, không phải nhân viên bán hàng)
+        final int nhanVien = 2;
+        final String hauTo = String.valueOf(System.currentTimeMillis());
+        final String diaChi = "12 Nguyễn Văn Bảo, Phường 4, Gò Vấp, TP.HCM";
+
+        ghService.lamTrongGio(khach);
+        int ton1Dau = lkService.timTheoMa(1).getSoLuongTon();
+        int ton4Dau = lkService.timTheoMa(4).getSoLuongTon();
+        BigDecimal gia1 = lkService.timTheoMa(1).getGiaBan();
+        BigDecimal gia4 = lkService.timTheoMa(4).getGiaBan();
+
+        // 1. Tạo đơn từ giỏ hàng
+        themDonMau(ghService, khach, 1, 2);
+        themDonMau(ghService, khach, 4, 3);
+        String maYeuCauA = "TEST-A-" + hauTo;
+        DonHang donA = dhService.taoDon(khach, "Nguyễn Văn An", "0912345678", diaChi, "COD", maYeuCauA, "Giao giờ hành chính");
+        assertTest(donA != null && donA.getMaDonHang() > 0 && DonHang.CHO_XAC_NHAN.equals(donA.getTrangThaiDon()),
+            "Tạo đơn từ giỏ hàng thành công, mã đơn #" + donA.getMaDonHang() + ", trạng thái Chờ xác nhận");
+
+        BigDecimal tongKyVong = gia1.multiply(BigDecimal.valueOf(2)).add(gia4.multiply(BigDecimal.valueOf(3)));
+        assertTest(donA.getDanhSachChiTiet().size() == 2 && donA.getTongTienHang().compareTo(tongKyVong) == 0
+                && donA.getTongThanhToan().compareTo(tongKyVong) == 0 && !donA.isDaHoanKho(),
+            String.format("Chi tiết đơn đủ 2 dòng, tổng thanh toán chốt đúng %,d VNĐ", donA.getTongThanhToan().longValue()));
+
+        // 2. Trừ tồn kho và làm trống giỏ
+        assertTest(lkService.timTheoMa(1).getSoLuongTon() == ton1Dau - 2 && lkService.timTheoMa(4).getSoLuongTon() == ton4Dau - 3,
+            "Tồn kho bị trừ đúng: Arduino " + ton1Dau + " -> " + (ton1Dau - 2) + ", DHT11 " + ton4Dau + " -> " + (ton4Dau - 3));
+        assertTest(ghService.layGioHang(khach).getDanhSachChiTiet().isEmpty(), "Giỏ hàng được làm trống sau khi đặt");
+
+        // 3. Nhật ký trạng thái ban đầu
+        List<LichSuTrangThaiDon> lichSu = dhService.layLichSuTrangThai(donA.getMaDonHang());
+        assertTest(lichSu.size() == 1 && lichSu.get(0).getTrangThaiCu() == null
+                && DonHang.CHO_XAC_NHAN.equals(lichSu.get(0).getTrangThaiMoi()),
+            "Ghi nhật ký trạng thái ban đầu (mới -> Chờ xác nhận)");
+
+        // 4. Chống trùng đơn (idempotency)
+        DonHang donTrung = dhService.taoDon(khach, "Nguyễn Văn An", "0912345678", diaChi, "COD", maYeuCauA, null);
+        assertTest(donTrung.getMaDonHang() == donA.getMaDonHang()
+                && lkService.timTheoMa(1).getSoLuongTon() == ton1Dau - 2,
+            "Gửi lại cùng mã yêu cầu trả về đơn cũ, không tạo đơn mới và không trừ kho lần hai");
+
+        // 5. Kiểm tra dữ liệu đầu vào
+        assertTest(IllegalStateException.class.equals(batLoi(() ->
+                dhService.taoDon(khach, "Nguyễn Văn An", "0912345678", diaChi, "COD", "TEST-RONG-" + hauTo, null))),
+            "Giỏ hàng trống thì không đặt được đơn");
+        themDonMau(ghService, khach, 2, 1);
+        assertTest(IllegalArgumentException.class.equals(batLoi(() ->
+                dhService.taoDon(khach, "Nguyễn Văn An", "123", diaChi, "COD", "TEST-SDT-" + hauTo, null))),
+            "Số điện thoại sai định dạng bị từ chối");
+        assertTest(IllegalArgumentException.class.equals(batLoi(() ->
+                dhService.taoDon(khach, "Nguyễn Văn An", "0912345678", "  ", "COD", "TEST-DC-" + hauTo, null))),
+            "Địa chỉ nhận hàng trống bị từ chối");
+        assertTest(IllegalArgumentException.class.equals(batLoi(() ->
+                dhService.taoDon(khach, "Nguyễn Văn An", "0912345678", diaChi, "TIEN_MAT", "TEST-PT-" + hauTo, null))),
+            "Phương thức thanh toán ngoài COD / CHUYEN_KHOAN bị từ chối");
+        ghService.lamTrongGio(khach);
+
+        // 6. Transaction: một dòng thiếu tồn thì hoàn tác toàn bộ (không trừ dòng khác, không tạo đơn, giữ nguyên giỏ)
+        int soDonTruoc = dhService.layDonCuaKhach(khach).size();
+        int ton1TruocLoi = lkService.timTheoMa(1).getSoLuongTon();
+        int ton8 = lkService.timTheoMa(8).getSoLuongTon();
+        themDonMau(ghService, khach, 1, 1);
+        themDonMau(ghService, khach, 8, 2);
+        lkService.dieuChinhTonKho(8, -(ton8 - 1), "Kiểm thử: giả lập người khác vừa mua hết hàng");
+        Class<? extends Exception> loiTonKho = batLoi(() ->
+            dhService.taoDon(khach, "Nguyễn Văn An", "0912345678", diaChi, "COD", "TEST-ROLLBACK-" + hauTo, null));
+        assertTest(IllegalStateException.class.equals(loiTonKho), "Thiếu tồn kho ở một dòng thì đặt hàng bị từ chối");
+        assertTest(lkService.timTheoMa(1).getSoLuongTon() == ton1TruocLoi
+                && dhService.layDonCuaKhach(khach).size() == soDonTruoc
+                && ghService.layGioHang(khach).getDanhSachChiTiet().size() == 2,
+            "Rollback toàn bộ: tồn kho dòng hợp lệ không bị trừ, không phát sinh đơn, giỏ hàng giữ nguyên");
+        lkService.dieuChinhTonKho(8, ton8 - 1, "Kiểm thử: khôi phục tồn kho");
+        ghService.lamTrongGio(khach);
+
+        // 7. Linh kiện ngừng bán sau khi đã vào giỏ thì không đặt được
+        LinhKien lkThu = new LinhKien();
+        lkThu.setMaSKU("TEST-DH-" + hauTo);
+        lkThu.setTenLinhKien("Linh kiện thử nghiệm đặt hàng");
+        lkThu.setMaDanhMuc(1);
+        lkThu.setKieuDongGoi("MODULE");
+        lkThu.setDonViTinh("Cái");
+        lkThu.setGiaBan(BigDecimal.valueOf(10000));
+        lkThu.setSoLuongTon(5);
+        lkThu.setNguongTonToiThieu(1);
+        lkThu.setTrangThaiBan("DANG_BAN");
+        lkService.themLinhKien(lkThu);
+        themDonMau(ghService, khach, lkThu.getMaLinhKien(), 1);
+        lkThu.setTrangThaiBan("NGUNG_BAN");
+        lkService.capNhatLinhKien(lkThu);
+        assertTest(IllegalStateException.class.equals(batLoi(() ->
+                dhService.taoDon(khach, "Nguyễn Văn An", "0912345678", diaChi, "COD", "TEST-NB-" + hauTo, null))),
+            "Linh kiện đã ngừng bán thì không đặt được");
+        ghService.lamTrongGio(khach);
+        lkService.xoaLinhKien(lkThu.getMaLinhKien());
+
+        // 8. Phân quyền
+        final int maDonA = donA.getMaDonHang();
+        assertTest(IllegalStateException.class.equals(batLoi(() ->
+                dhService.capNhatTrangThai(maDonA, DonHang.DANG_DONG_GOI, khach, null))),
+            "Khách hàng không được cập nhật trạng thái đơn");
+        assertTest(IllegalStateException.class.equals(batLoi(() -> dhService.huyDon(maDonA, khachKhac, null))),
+            "Khách hàng không hủy được đơn của người khác");
+        assertTest(IllegalStateException.class.equals(batLoi(() -> dhService.layChiTietDon(maDonA, khachKhac))),
+            "Khách hàng không xem được đơn của người khác");
+        assertTest(dhService.layChiTietDon(maDonA, nhanVien).getMaDonHang() == maDonA,
+            "Nhân viên bán hàng xem được đơn của mọi khách");
+
+        // 9. Luồng trạng thái hợp lệ: Chờ xác nhận -> Đang đóng gói -> Đang giao -> Đã giao
+        assertTest(IllegalStateException.class.equals(batLoi(() ->
+                dhService.capNhatTrangThai(maDonA, DonHang.DA_GIAO, nhanVien, null))),
+            "Không được nhảy cóc từ Chờ xác nhận sang Đã giao");
+        dhService.capNhatTrangThai(maDonA, DonHang.DANG_DONG_GOI, nhanVien, null);
+        assertTest(DonHang.DANG_DONG_GOI.equals(dhService.layChiTietDon(maDonA, nhanVien).getTrangThaiDon()),
+            "Xác nhận đơn: Chờ xác nhận -> Đang đóng gói");
+
+        assertTest(IllegalArgumentException.class.equals(batLoi(() ->
+                dhService.capNhatTrangThai(maDonA, DonHang.DANG_GIAO, nhanVien, null))),
+            "Chuyển sang Đang giao bắt buộc đi qua bàn giao vận chuyển");
+        assertTest(IllegalArgumentException.class.equals(batLoi(() ->
+                dhService.banGiaoVanChuyen(maDonA, "", "VD-X", nhanVien))),
+            "Bàn giao thiếu đơn vị vận chuyển bị từ chối");
+
+        final String maVanDonA = "VD-" + hauTo + "-A";
+        VanChuyen vcA = dhService.banGiaoVanChuyen(maDonA, "GiaoHangNhanh", maVanDonA, nhanVien);
+        assertTest(vcA != null && "DANG_GIAO".equals(vcA.getTrangThaiGiao()) && maVanDonA.equals(vcA.getMaVanDon())
+                && vcA.getNgayBanGiao() != null && vcA.getNgayGiaoDuKien() != null
+                && DonHang.DANG_GIAO.equals(dhService.layChiTietDon(maDonA, nhanVien).getTrangThaiDon()),
+            "Bàn giao vận chuyển: Đang đóng gói -> Đang giao, có mã vận đơn và ngày giao dự kiến");
+
+        assertTest(IllegalStateException.class.equals(batLoi(() -> dhService.huyDon(maDonA, nhanVien, "Thử hủy"))),
+            "Đơn đang giao không được hủy");
+
+        dhService.capNhatTrangThai(maDonA, DonHang.DA_GIAO, nhanVien, null);
+        DonHang daGiao = dhService.layChiTietDon(maDonA, khach);
+        VanChuyen vcGiao = dhService.layVanChuyen(maDonA);
+        assertTest(DonHang.DA_GIAO.equals(daGiao.getTrangThaiDon()) && "DA_GIAO".equals(vcGiao.getTrangThaiGiao())
+                && vcGiao.getNgayGiaoThucTe() != null && vcGiao.isDaThuCOD()
+                && "DA_THANH_TOAN".equals(daGiao.getTrangThaiThanhToan()),
+            "Giao thành công: Đang giao -> Đã giao, vận chuyển Đã giao, COD được ghi nhận đã thu tiền");
+        assertTest(dhService.layLichSuTrangThai(maDonA).size() == 4,
+            "Nhật ký trạng thái ghi đủ 4 mốc của đơn đã giao");
+        assertTest(IllegalStateException.class.equals(batLoi(() ->
+                dhService.capNhatTrangThai(maDonA, DonHang.DA_HUY, nhanVien, null))),
+            "Đơn đã giao không thể hủy hoặc đổi trạng thái nữa");
+        assertTest(lkService.timTheoMa(1).getSoLuongTon() == ton1Dau - 2,
+            "Đơn đã giao giữ nguyên tồn kho đã trừ");
+
+        // 10. Khách hàng hủy đơn đang chờ xác nhận: hoàn kho đúng một lần
+        themDonMau(ghService, khach, 1, 4);
+        DonHang donB = dhService.taoDon(khach, "Nguyễn Văn An", "0912345678", diaChi, "CHUYEN_KHOAN", "TEST-B-" + hauTo, null);
+        assertTest(lkService.timTheoMa(1).getSoLuongTon() == ton1Dau - 2 - 4, "Đơn mới trừ thêm 4 Arduino khỏi kho");
+        dhService.huyDon(donB.getMaDonHang(), khach, "Đặt nhầm số lượng");
+        DonHang daHuyB = dhService.layChiTietDon(donB.getMaDonHang(), khach);
+        assertTest(DonHang.DA_HUY.equals(daHuyB.getTrangThaiDon()) && daHuyB.isDaHoanKho()
+                && lkService.timTheoMa(1).getSoLuongTon() == ton1Dau - 2,
+            "Khách hủy đơn Chờ xác nhận: trạng thái Đã hủy, tồn kho hoàn lại đủ 4 cái");
+        assertTest(IllegalStateException.class.equals(batLoi(() -> dhService.huyDon(donB.getMaDonHang(), khach, null)))
+                && lkService.timTheoMa(1).getSoLuongTon() == ton1Dau - 2,
+            "Hủy lần hai bị từ chối, tồn kho không bị cộng trùng");
+
+        // 11. Nhân viên hủy đơn đang đóng gói
+        themDonMau(ghService, khach, 4, 5);
+        DonHang donC = dhService.taoDon(khach, "Nguyễn Văn An", "0912345678", diaChi, "COD", "TEST-C-" + hauTo, null);
+        dhService.capNhatTrangThai(donC.getMaDonHang(), DonHang.DANG_DONG_GOI, nhanVien, null);
+        dhService.capNhatTrangThai(donC.getMaDonHang(), DonHang.DA_HUY, nhanVien, "Khách đổi ý");
+        assertTest(DonHang.DA_HUY.equals(dhService.layChiTietDon(donC.getMaDonHang(), nhanVien).getTrangThaiDon())
+                && lkService.timTheoMa(4).getSoLuongTon() == ton4Dau - 3,
+            "Nhân viên hủy đơn Đang đóng gói: tồn kho DHT11 hoàn lại đủ 5 cái");
+
+        // 12. Giao thất bại: hoàn kho, vận chuyển ghi nhận thất bại, mã vận đơn không được trùng
+        themDonMau(ghService, khach, 4, 2);
+        DonHang donD = dhService.taoDon(khach, "Nguyễn Văn An", "0912345678", diaChi, "COD", "TEST-D-" + hauTo, null);
+        dhService.capNhatTrangThai(donD.getMaDonHang(), DonHang.DANG_DONG_GOI, nhanVien, null);
+        assertTest(IllegalStateException.class.equals(batLoi(() ->
+                dhService.banGiaoVanChuyen(donD.getMaDonHang(), "ViettelPost", maVanDonA, nhanVien))),
+            "Mã vận đơn đã dùng cho đơn khác thì bị từ chối");
+        dhService.banGiaoVanChuyen(donD.getMaDonHang(), "ViettelPost", "VD-" + hauTo + "-D", nhanVien);
+        dhService.capNhatTrangThai(donD.getMaDonHang(), DonHang.GIAO_THAT_BAI, nhanVien, "Khách không nghe máy");
+        DonHang thatBai = dhService.layChiTietDon(donD.getMaDonHang(), nhanVien);
+        assertTest(DonHang.GIAO_THAT_BAI.equals(thatBai.getTrangThaiDon()) && thatBai.isDaHoanKho()
+                && "GIAO_THAT_BAI".equals(dhService.layVanChuyen(donD.getMaDonHang()).getTrangThaiGiao())
+                && lkService.timTheoMa(4).getSoLuongTon() == ton4Dau - 3
+                && !"DA_THANH_TOAN".equals(thatBai.getTrangThaiThanhToan()),
+            "Giao thất bại: hoàn kho 2 cái, vận chuyển Giao thất bại, COD chưa thu tiền");
+
+        // 13. Tra cứu và lọc
+        assertTest(dhService.layDonCuaKhach(khach).size() >= soDonTruoc + 3
+                && dhService.layDonCuaKhach(khachKhac).isEmpty(),
+            "Lịch sử đơn của khách đầy đủ và không lẫn đơn của khách khác");
+        assertTest(dhService.layTatCaDon(nhanVien, DonHang.DA_HUY).stream().allMatch(d -> DonHang.DA_HUY.equals(d.getTrangThaiDon()))
+                && !dhService.layTatCaDon(nhanVien, DonHang.DA_HUY).isEmpty()
+                && IllegalStateException.class.equals(batLoi(() -> dhService.layTatCaDon(khach, null))),
+            "Nhân viên lọc đơn theo trạng thái; khách hàng không xem được danh sách toàn bộ đơn");
+
+        // 14. Khôi phục dữ liệu mẫu để các lần chạy sau không bị ảnh hưởng
+        lkService.dieuChinhTonKho(1, 2, "Kiểm thử: khôi phục tồn kho sau khi đơn mẫu giao xong");
+        lkService.dieuChinhTonKho(4, 3, "Kiểm thử: khôi phục tồn kho sau khi đơn mẫu giao xong");
+        assertTest(lkService.timTheoMa(1).getSoLuongTon() == ton1Dau && lkService.timTheoMa(4).getSoLuongTon() == ton4Dau,
+            "Khôi phục tồn kho về mức ban đầu sau kiểm thử");
+        ghService.themVaoGio(khach, 1, 2);
+        ghService.themVaoGio(khach, 4, 3);
     }
 
     private static void assertTest(boolean condition, String message) {

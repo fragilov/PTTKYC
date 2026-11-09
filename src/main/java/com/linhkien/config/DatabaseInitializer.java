@@ -20,6 +20,7 @@ public class DatabaseInitializer {
                 initSqliteSchema(conn);
                 if (DatabaseConfig.isInitSampleData()) {
                     seedSqliteSampleData(conn);
+                    seedNhanVienMau(conn);
                 }
             } else if ("sqlserver".equalsIgnoreCase(dbType)) {
                 checkSqlServerSchema(conn);
@@ -119,6 +120,128 @@ public class DatabaseInitializer {
                     FOREIGN KEY (MaLinhKien) REFERENCES LinhKien(MaLinhKien) ON DELETE CASCADE
                 );
             """);
+
+            // 7. DonHang
+            stmt.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS DonHang (
+                    MaDonHang INTEGER PRIMARY KEY AUTOINCREMENT,
+                    MaNguoiDung INTEGER NOT NULL,
+                    MaGiamGia INTEGER NULL,
+                    MaYeuCau TEXT NOT NULL UNIQUE,
+                    NgayDat TEXT NOT NULL,
+                    TenNguoiNhan TEXT NOT NULL,
+                    SoDienThoaiNhan TEXT NOT NULL,
+                    DiaChiNhan TEXT NOT NULL,
+                    TongTienHang NUMERIC NOT NULL CHECK (TongTienHang >= 0),
+                    PhiVanChuyen NUMERIC NOT NULL DEFAULT 0 CHECK (PhiVanChuyen >= 0),
+                    SoTienGiam NUMERIC NOT NULL DEFAULT 0 CHECK (SoTienGiam >= 0),
+                    TongThanhToan NUMERIC NOT NULL,
+                    PhuongThucThanhToan TEXT NOT NULL CHECK (PhuongThucThanhToan IN ('COD','CHUYEN_KHOAN')),
+                    TrangThaiThanhToan TEXT NOT NULL DEFAULT 'CHO_THANH_TOAN'
+                        CHECK (TrangThaiThanhToan IN ('CHO_THANH_TOAN','DA_THANH_TOAN','DANG_HOAN_TIEN','DA_HOAN_TIEN')),
+                    TrangThaiDon TEXT NOT NULL DEFAULT 'CHO_XAC_NHAN'
+                        CHECK (TrangThaiDon IN ('CHO_XAC_NHAN','DANG_DONG_GOI','DA_BAN_GIAO','DANG_GIAO','DA_GIAO','GIAO_THAT_BAI','DA_HUY')),
+                    DaHoanKho INTEGER NOT NULL DEFAULT 0,
+                    GhiChu TEXT NULL,
+                    FOREIGN KEY (MaNguoiDung) REFERENCES NguoiDung(MaNguoiDung),
+                    CHECK (TongThanhToan = TongTienHang + PhiVanChuyen - SoTienGiam)
+                );
+            """);
+
+            // 8. ChiTietDonHang
+            stmt.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS ChiTietDonHang (
+                    MaDonHang INTEGER NOT NULL,
+                    MaLinhKien INTEGER NOT NULL,
+                    SoLuong INTEGER NOT NULL CHECK (SoLuong > 0),
+                    DonGia NUMERIC NOT NULL CHECK (DonGia >= 0),
+                    PRIMARY KEY (MaDonHang, MaLinhKien),
+                    FOREIGN KEY (MaDonHang) REFERENCES DonHang(MaDonHang) ON DELETE CASCADE,
+                    FOREIGN KEY (MaLinhKien) REFERENCES LinhKien(MaLinhKien)
+                );
+            """);
+
+            // 9. VanChuyen
+            stmt.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS VanChuyen (
+                    MaVanChuyen INTEGER PRIMARY KEY AUTOINCREMENT,
+                    MaDonHang INTEGER NOT NULL UNIQUE,
+                    DonViVanChuyen TEXT NOT NULL,
+                    MaVanDon TEXT NOT NULL UNIQUE,
+                    TrangThaiGiao TEXT NOT NULL DEFAULT 'CHO_LAY_HANG'
+                        CHECK (TrangThaiGiao IN ('CHO_LAY_HANG','DANG_GIAO','DA_GIAO','GIAO_THAT_BAI','HOAN_HANG')),
+                    NgayBanGiao TEXT NULL,
+                    NgayGiaoDuKien TEXT NULL,
+                    NgayGiaoThucTe TEXT NULL,
+                    DaThuCOD INTEGER NOT NULL DEFAULT 0,
+                    GhiChu TEXT NULL,
+                    FOREIGN KEY (MaDonHang) REFERENCES DonHang(MaDonHang)
+                );
+            """);
+
+            // 10. LichSuTrangThaiDon
+            stmt.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS LichSuTrangThaiDon (
+                    MaLichSu INTEGER PRIMARY KEY AUTOINCREMENT,
+                    MaDonHang INTEGER NOT NULL,
+                    TrangThaiCu TEXT NULL,
+                    TrangThaiMoi TEXT NOT NULL,
+                    MaNguoiThucHien INTEGER NULL,
+                    ThoiDiem TEXT NOT NULL,
+                    GhiChu TEXT NULL,
+                    FOREIGN KEY (MaDonHang) REFERENCES DonHang(MaDonHang),
+                    FOREIGN KEY (MaNguoiThucHien) REFERENCES NguoiDung(MaNguoiDung)
+                );
+            """);
+
+            // 11. LichSuTonKho
+            stmt.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS LichSuTonKho (
+                    MaLichSu INTEGER PRIMARY KEY AUTOINCREMENT,
+                    MaLinhKien INTEGER NOT NULL,
+                    LoaiBienDong TEXT NOT NULL CHECK (LoaiBienDong IN ('NHAP','BAN','HOAN_HUY','DIEU_CHINH')),
+                    SoLuongThayDoi INTEGER NOT NULL CHECK (SoLuongThayDoi <> 0),
+                    TonTruoc INTEGER NOT NULL CHECK (TonTruoc >= 0),
+                    TonSau INTEGER NOT NULL CHECK (TonSau >= 0),
+                    MaDonHang INTEGER NULL,
+                    MaNguoiThucHien INTEGER NULL,
+                    LyDo TEXT NULL,
+                    ThoiDiem TEXT NOT NULL,
+                    FOREIGN KEY (MaLinhKien) REFERENCES LinhKien(MaLinhKien),
+                    FOREIGN KEY (MaDonHang) REFERENCES DonHang(MaDonHang),
+                    FOREIGN KEY (MaNguoiThucHien) REFERENCES NguoiDung(MaNguoiDung),
+                    CHECK (TonSau = TonTruoc + SoLuongThayDoi)
+                );
+            """);
+        }
+    }
+
+    /**
+     * Bổ sung các tài khoản nhân viên mẫu (đồng bộ với QL_BanLinhKien_Data_Sample.sql) để thử chức năng
+     * xử lý đơn hàng: ID 2 nhân viên bán hàng, ID 3 nhân viên kho, ID 4 quản trị viên.
+     * Dùng INSERT OR IGNORE nên chạy lại nhiều lần hoặc trên CSDL cũ đều an toàn.
+     */
+    private static void seedNhanVienMau(Connection conn) throws SQLException {
+        String sql = """
+            INSERT OR IGNORE INTO NguoiDung (MaNguoiDung, HoTen, Email, SoDienThoai, MatKhauHash, VaiTro, TrangThai, NgayTao)
+            VALUES (?, ?, ?, ?, ?, ?, 'HOAT_DONG', datetime('now'))
+        """;
+        String matKhauHash = "e10adc3949ba59abbe56e057f20f883e"; // 123456
+        Object[][] nhanVien = {
+            {2, "Trần Thị Bích", "bich.tran@linhkien.vn", "0987654321", "NV_BAN_HANG"},
+            {3, "Lê Hoàng Long", "long.le@linhkien.vn", "0933445566", "NV_KHO"},
+            {4, "Admin Quản Trị", "admin@linhkien.vn", "0909090909", "QUAN_TRI"}
+        };
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (Object[] nv : nhanVien) {
+                ps.setInt(1, (Integer) nv[0]);
+                ps.setString(2, (String) nv[1]);
+                ps.setString(3, (String) nv[2]);
+                ps.setString(4, (String) nv[3]);
+                ps.setString(5, matKhauHash);
+                ps.setString(6, (String) nv[4]);
+                ps.executeUpdate();
+            }
         }
     }
 
