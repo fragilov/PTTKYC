@@ -12,10 +12,10 @@
 4. [Các chức năng đã hoàn thành](#4-các-chức-năng-đã-hoàn-thành)
 5. [Hướng dẫn cài đặt môi trường & Chạy thử](#5-hướng-dẫn-cài-đặt-môi-trường--chạy-thử)
 6. [HƯỚNG DẪN VIẾT TIẾP CODE CHO CÁC MODULE CÒN LẠI](#6-hướng-dẫn-viết-tiếp-code-cho-các-module-còn-lại)
-   - [Module 1: Đặt hàng & Quản lý đơn hàng (DonHang, ChiTietDonHang)](#module-1-đặt-hàng--quản-lý-đơn-hàng-donhang-chitietdonhang)
+   - [Module 1: Đặt hàng & Quản lý đơn hàng (DonHang, ChiTietDonHang) - ĐÃ HOÀN THÀNH](#module-1-đặt-hàng--quản-lý-đơn-hàng-donhang-chitietdonhang)
    - [Module 2: Mã giảm giá (MaGiamGia)](#module-2-mã-giảm-giá-magiamgia)
    - [Module 3: Giao dịch thanh toán (ThanhToan)](#module-3-giao-dịch-thanh-toán-thanhtoan)
-   - [Module 4: Vận chuyển & Giao hàng (VanChuyen)](#module-4-vận-chuyển--giao-hàng-vanchuyen)
+   - [Module 4: Vận chuyển & Giao hàng (VanChuyen) - ĐÃ HOÀN THÀNH](#module-4-vận-chuyển--giao-hàng-vanchuyen)
    - [Module 5: Lịch sử tồn kho & Lịch sử trạng thái đơn](#module-5-lịch-sử-tồn-kho--lịch-sử-trạng-thái-đơn)
 7. [Quy trình 5 bước chuẩn khi cài đặt một tính năng mới](#7-quy-trình-5-bước-chuẩn-khi-cài-đặt-một-tính-năng-mới)
 8. [Các lưu ý kỹ thuật sống còn (Best Practices)](#8-các-lưu-ý-kỹ-thuật-sống-còn-best-practices)
@@ -74,12 +74,12 @@ Dự án áp dụng mô hình phân tầng chuẩn 3 lớp (**3-Tier Architectur
   * `DatabaseConfig`: Đọc cấu hình từ `db.properties`.
   * `DatabaseConnection`: Cung cấp JDBC Connection (hỗ trợ kép cả SQL Server và SQLite).
   * `DatabaseInitializer`: Tự động khởi tạo schema và nạp 10 linh kiện điện tử mẫu ban đầu nếu bảng trống.
-* **`com.linhkien.model`**: Chứa các Entity POJO đại diện cho đối tượng nghiệp vụ theo Class Diagram (`LinhKien`, `DanhMucLinhKien`, `GioHang`, `ChiTietGioHang`, `NguoiDung`). Mỗi lớp chứa cả các phương thức nghiệp vụ hướng đối tượng thuần túy (`kiemTraTon`, `truTon`, `tinhThanhTien`...).
-* **`com.linhkien.dao`**: Chịu trách nhiệm duy nhất là truy vấn và thao tác dữ liệu qua SQL (`LinhKienDAO`, `GioHangDAO`, `DanhMucDAO`).
-* **`com.linhkien.service`**: Chứa toàn bộ logic kiểm tra hợp lệ, nghiệp vụ thương mại, cảnh báo tồn kho (`LinhKienService`, `GioHangService`).
+* **`com.linhkien.model`**: Chứa các Entity POJO đại diện cho đối tượng nghiệp vụ theo Class Diagram (`LinhKien`, `DanhMucLinhKien`, `GioHang`, `ChiTietGioHang`, `NguoiDung`, `DonHang`, `ChiTietDonHang`, `VanChuyen`, `LichSuTrangThaiDon`). Mỗi lớp chứa cả các phương thức nghiệp vụ hướng đối tượng thuần túy (`kiemTraTon`, `truTon`, `tinhThanhTien`...).
+* **`com.linhkien.dao`**: Chịu trách nhiệm duy nhất là truy vấn và thao tác dữ liệu qua SQL (`LinhKienDAO`, `GioHangDAO`, `DanhMucDAO`, `NguoiDungDAO`, `DonHangDAO`).
+* **`com.linhkien.service`**: Chứa toàn bộ logic kiểm tra hợp lệ, nghiệp vụ thương mại, cảnh báo tồn kho (`LinhKienService`, `GioHangService`, `DonHangService`).
 * **`com.linhkien.ui`**: Giao diện console tương tác (`ConsoleApp`), menu chọn chức năng, định dạng bảng hiển thị.
 * **`com.linhkien`**: Điểm khởi chạy chương trình (`Main.java`).
-* **`com.linhkien (test)`**: Bộ kiểm thử tự động 18 kịch bản nghiệp vụ (`AppTest.java`).
+* **`com.linhkien (test)`**: Bộ kiểm thử tự động 54 kiểm tra nghiệp vụ (`AppTest.java`).
 
 ---
 
@@ -101,6 +101,47 @@ Dự án áp dụng mô hình phân tầng chuẩn 3 lớp (**3-Tier Architectur
 * [x] **Thêm linh kiện vào giỏ**: Kiểm tra sản phẩm đang bán (`DANG_BAN`), **kiểm tra tồn kho** (không cho thêm vượt quá tồn kho thực tế), cộng dồn số lượng nếu đã có trong giỏ.
 * [x] **Cập nhật số lượng trong giỏ**: Thay đổi số lượng mua; nếu số lượng $\le 0$ thì tự động xóa dòng; kiểm tra không vượt quá tồn kho.
 * [x] **Xóa linh kiện khỏi giỏ** & **Làm trống giỏ hàng**.
+
+### C. Đặt hàng (UC08)
+* [x] **Tạo đơn từ giỏ hàng** (`DonHangService.taoDon`): nhập tên, số điện thoại, địa chỉ nhận hàng, phương thức thanh toán (`COD` / `CHUYEN_KHOAN`), ghi chú. Đơn mới có trạng thái `CHO_XAC_NHAN`.
+* [x] **Chốt đơn giá** tại thời điểm đặt vào `ChiTietDonHang.DonGia`, nên đổi giá linh kiện sau này không làm thay đổi đơn cũ. `TongThanhToan = TongTienHang + PhiVanChuyen - SoTienGiam` (phí vận chuyển và giảm giá mặc định 0).
+* [x] **Trừ tồn kho nguyên tử** (NFR04): `UPDATE ... SET SoLuongTon = SoLuongTon - ? WHERE SoLuongTon >= ? AND TrangThaiBan = 'DANG_BAN'`. Mỗi lần trừ ghi một dòng `LichSuTonKho` (loại `BAN`, tồn trước / tồn sau).
+* [x] **Transaction**: tạo đơn, ghi chi tiết, trừ kho, ghi nhật ký và làm trống giỏ chạy trong một giao dịch. Một dòng thiếu tồn thì rollback toàn bộ (không trừ kho các dòng khác, không phát sinh đơn, giữ nguyên giỏ).
+* [x] **Chống trùng đơn** (NFR05): mỗi lần xác nhận đặt hàng sinh một `MaYeuCau` (UUID); gửi lại cùng mã sẽ trả về đơn cũ.
+* [x] Từ chối khi giỏ trống, số điện thoại sai định dạng, địa chỉ trống, linh kiện đã ngừng bán.
+
+### D. Quản lý đơn hàng & Cập nhật trạng thái vận chuyển (UC10, UC11, UC14, UC19)
+* [x] **Khách hàng**: xem lịch sử đơn của mình, xem chi tiết đơn kèm thông tin vận chuyển và lịch sử trạng thái, hủy đơn của mình.
+* [x] **Nhân viên bán hàng / quản trị**: xem danh sách mọi đơn (lọc theo trạng thái), xem chi tiết mọi đơn, cập nhật trạng thái.
+* [x] **Luồng trạng thái** (mọi chuyển đổi khác đều bị từ chối):
+
+```
+CHO_XAC_NHAN --xác nhận--> DANG_DONG_GOI --bàn giao vận chuyển--> DANG_GIAO --+--> DA_GIAO
+      |                          |                                            +--> GIAO_THAT_BAI (hoàn kho)
+      +----------+---------------+
+                 v
+              DA_HUY (hoàn kho)
+```
+
+* [x] **Bàn giao vận chuyển** (`banGiaoVanChuyen`): nhập đơn vị vận chuyển và mã vận đơn (duy nhất), tạo bản ghi `VanChuyen` trạng thái `DANG_GIAO`, ngày giao dự kiến sau 3 ngày.
+* [x] **Giao thành công**: `VanChuyen` chuyển `DA_GIAO` kèm thời điểm giao thực tế; đơn `COD` được ghi nhận đã thu tiền (`DaThuCOD`, `TrangThaiThanhToan = DA_THANH_TOAN`).
+* [x] **Hủy đơn / giao thất bại**: cộng lại tồn kho đúng một lần nhờ cờ `DaHoanKho`, ghi `LichSuTonKho` loại `HOAN_HUY`. Khách chỉ hủy được đơn của mình; chỉ hủy được khi đơn đang `CHO_XAC_NHAN` hoặc `DANG_DONG_GOI`.
+* [x] **Nhật ký** (NFR03): mọi lần đổi trạng thái ghi `LichSuTrangThaiDon` (trạng thái cũ, mới, người thực hiện, thời điểm, ghi chú).
+* [x] **Phân quyền** dựa vào `NguoiDung.kiemTraQuyen("BAN_HANG")`: khách không cập nhật được trạng thái, không xem hay hủy được đơn của người khác.
+* Ghi chú thiết kế: bảng `DonHang` còn trạng thái `DA_BAN_GIAO`; luồng hiện tại đi thẳng từ `DANG_DONG_GOI` sang `DANG_GIAO` khi bàn giao, nên không dùng trạng thái này.
+
+### Menu giao diện Console cho phần đặt hàng
+| Mục | Chức năng | Người dùng |
+| :--- | :--- | :--- |
+| 12 | Đặt hàng từ giỏ hàng | Khách hàng (ID 1) |
+| 13 | Xem lịch sử đơn hàng của tôi | Khách hàng (ID 1) |
+| 14 | Xem chi tiết & theo dõi vận chuyển đơn của tôi | Khách hàng (ID 1) |
+| 15 | Hủy đơn hàng của tôi | Khách hàng (ID 1) |
+| 16 | Danh sách đơn hàng, lọc theo trạng thái | Nhân viên bán hàng (ID 2) |
+| 17 | Xem chi tiết đơn hàng bất kỳ | Nhân viên bán hàng (ID 2) |
+| 18 | Cập nhật trạng thái đơn / bàn giao vận chuyển | Nhân viên bán hàng (ID 2) |
+
+Tài khoản mẫu (mật khẩu 123456): ID 1 khách hàng Nguyễn Văn An, ID 2 nhân viên bán hàng Trần Thị Bích, ID 3 nhân viên kho Lê Hoàng Long, ID 4 quản trị viên.
 
 ---
 
@@ -130,7 +171,7 @@ Dự án áp dụng mô hình phân tầng chuẩn 3 lớp (**3-Tier Architectur
   ```
 
 ### Các lệnh thực thi (Windows CMD / PowerShell):
-* **Chạy kiểm thử tự động 18 kịch bản (Automated Test)**:
+* **Chạy kiểm thử tự động 54 kiểm tra (Automated Test)**:
   ```powershell
   .\test.bat
   # hoặc trong PowerShell:
@@ -157,7 +198,9 @@ Dưới đây là thiết kế chi tiết và mã khung hướng dẫn cho các 
 
 ---
 
-### Module 1: Đặt hàng & Quản lý đơn hàng (DonHang, ChiTietDonHang)
+### Module 1: Đặt hàng & Quản lý đơn hàng (DonHang, ChiTietDonHang) - ĐÃ HOÀN THÀNH
+> Đã cài đặt trong `DonHang`, `ChiTietDonHang`, `DonHangDAO`, `DonHangService` (xem mục 4.C và 4.D). Phần mô tả dưới đây là thiết kế gốc để đối chiếu.
+>
 > **Use Case liên quan**: UC08 (Checkout/Tạo đơn), UC10 (Xem lịch sử đơn), UC14 (Xử lý đơn hàng), UC19 (Hủy đơn hàng).  
 > **Sequence Diagrams**: CV07.1 (Đặt hàng), CV07.2 (Hủy đơn hàng), CV07.3 (Điều chỉnh kho).
 
@@ -256,7 +299,9 @@ public class MaGiamGia {
 
 ---
 
-### Module 4: Vận chuyển & Giao hàng (VanChuyen)
+### Module 4: Vận chuyển & Giao hàng (VanChuyen) - ĐÃ HOÀN THÀNH
+> Đã cài đặt trong `VanChuyen`, `DonHangDAO`, `DonHangService.banGiaoVanChuyen` và `capNhatTrangThai` (xem mục 4.D). Phần mô tả dưới đây là thiết kế gốc để đối chiếu.
+>
 > **Use Case**: UC11 (Tra cứu vận chuyển), UC14 (Bàn giao cho đơn vị vận chuyển).
 
 #### 1. Entity `VanChuyen.java`:
@@ -274,6 +319,8 @@ public class MaGiamGia {
 ---
 
 ### Module 5: Lịch sử tồn kho & Lịch sử trạng thái đơn
+> Phần ghi `LichSuTonKho` (loại `BAN`, `HOAN_HUY`) và `LichSuTrangThaiDon` đã được cài đặt cùng Module 1. Loại `NHAP` và `DIEU_CHINH` khi điều chỉnh kho thủ công vẫn còn để làm tiếp.
+>
 > **Yêu cầu phi chức năng NFR03 (Audit Trail)**: Mọi biến động số lượng tồn và trạng thái đơn đều phải lưu log dấu vết.
 
 * **`LichSuTonKho`**: Lưu `maLinhKien`, `loaiBienDong` (`'NHAP'`, `'BAN'`, `'HOAN_HUY'`, `'DIEU_CHINH'`), `soLuongThayDoi`, `tonTruoc`, `tonSau`, `maDonHang`, `maNguoiThucHien`, `lyDo`, `thoiDiem`.
