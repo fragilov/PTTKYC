@@ -201,7 +201,7 @@ Dưới đây là thiết kế chi tiết và mã khung hướng dẫn cho các 
 ### Module 1: Đặt hàng & Quản lý đơn hàng (DonHang, ChiTietDonHang) - ĐÃ HOÀN THÀNH
 > Đã cài đặt trong `DonHang`, `ChiTietDonHang`, `DonHangDAO`, `DonHangService` (xem mục 4.C và 4.D). Phần mô tả dưới đây là thiết kế gốc để đối chiếu.
 >
-> **Use Case liên quan**: UC08 (Checkout/Tạo đơn), UC10 (Xem lịch sử đơn), UC14 (Xử lý đơn hàng), UC19 (Hủy đơn hàng).  
+> **Use Case liên quan**: UC08 (Checkout/Tạo đơn), UC10 (Xem lịch sử đơn), UC14 (Xử lý đơn hàng), UC19 (Hủy đơn hàng).
 > **Sequence Diagrams**: CV07.1 (Đặt hàng), CV07.2 (Hủy đơn hàng), CV07.3 (Điều chỉnh kho).
 
 #### 1. Entity `DonHang.java` cần có các thuộc tính:
@@ -224,7 +224,7 @@ public class DonHang {
     private String trangThaiDon;        // 'CHO_XAC_NHAN', 'DANG_DONG_GOI', 'DA_BAN_GIAO', 'DANG_GIAO', 'DA_GIAO', 'GIAO_THAT_BAI', 'DA_HUY'
     private boolean daHoanKho;          // Mặc định false (CV07.2)
     private String ghiChu;
-    
+
     // Quan hệ Composition: DonHang ◆ ChiTietDonHang (1 - 1..*)
     private List<ChiTietDonHang> danhSachChiTiet = new ArrayList<>();
 }
@@ -369,9 +369,9 @@ Khi nhận phân công viết một tính năng mới (ví dụ: Tạo đơn hà
    Connection conn = DatabaseConnection.getConnection();
    try {
        conn.setAutoCommit(false); // Bắt đầu transaction
-       
+
        // Các thao tác ghi CSDL...
-       
+
        conn.commit(); // Thành công thì lưu
    } catch (Exception e) {
        conn.rollback(); // Có lỗi thì hoàn tác toàn bộ
@@ -390,3 +390,7 @@ Khi nhận phân công viết một tính năng mới (ví dụ: Tạo đơn hà
 ---
 
 > 🎯 *Chúc nhóm hoàn thành xuất sắc đồ án môn học PTTKYC! Nếu có bất kỳ câu hỏi nào về kiến trúc hoặc luồng code, hãy tham khảo các file mẫu có sẵn: `LinhKienDAO.java`, `GioHangService.java` và `AppTest.java`.*
+
+## Prototype UI + Java API
+
+Xem [Hướng dẫn chạy prototype](HUONG-DAN-PROTOTYPE.md). UI React nằm trong frontend/. Chạy backend bằng run-api.ps1, sau đó npm ci và npm run dev trong frontend/.

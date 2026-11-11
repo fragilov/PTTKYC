@@ -21,3 +21,8 @@ ql_banlinhkien.db
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Frontend build/dependencies
+node_modules/
+dist/
+*.log

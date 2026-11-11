@@ -74,6 +74,12 @@ public class DonHangService {
      */
     public DonHang taoDon(int maNguoiDung, String tenNguoiNhan, String soDienThoaiNhan, String diaChiNhan,
                           String phuongThucThanhToan, String maYeuCau, String ghiChu) {
+        return taoDon(maNguoiDung, tenNguoiNhan, soDienThoaiNhan, diaChiNhan, phuongThucThanhToan, maYeuCau, ghiChu, "legacy");
+    }
+
+    public DonHang taoDon(int maNguoiDung, String tenNguoiNhan, String soDienThoaiNhan, String diaChiNhan,
+                          String phuongThucThanhToan, String maYeuCau, String ghiChu, String shipping) {
+        if (!Set.of("legacy", "standard", "express").contains(shipping)) throw new IllegalArgumentException("Vận chuyển không hợp lệ");
         String ten = tenNguoiNhan == null ? "" : tenNguoiNhan.trim();
         String sdt = soDienThoaiNhan == null ? "" : soDienThoaiNhan.trim();
         String diaChi = diaChiNhan == null ? "" : diaChiNhan.trim();
@@ -149,6 +155,7 @@ public class DonHangService {
             }
             dh.setDanhSachChiTiet(dongDon);
             dh.setTongTienHang(dh.tinhTongTienHang());
+            dh.setPhiVanChuyen(java.math.BigDecimal.valueOf(shipping.equals("express") ? 49000 : shipping.equals("standard") ? 25000 : 0));
             dh.setTongThanhToan(dh.tinhTongThanhToan());
 
             // 2. Ghi đơn hàng

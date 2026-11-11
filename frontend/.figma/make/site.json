@@ -1,0 +1,10 @@
+{
+  "description": "Shop electronic components, filter products, manage carts and checkout, track orders, and administer inventory, orders, and shipping in one place.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
