@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-Set-Location $PSScriptRoot
+Set-Location (Resolve-Path (Join-Path $PSScriptRoot ".."))
 $javaFiles = Get-ChildItem src/main/java -Filter *.java -Recurse | Select-Object -ExpandProperty FullName
 if (!(Test-Path bin)) { New-Item -ItemType Directory bin | Out-Null }
 $compiler = (Get-Command javac).Source

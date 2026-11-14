@@ -5,18 +5,14 @@ import com.linhkien.model.ChiTietDonHang;
 import com.linhkien.model.DonHang;
 import com.linhkien.model.LichSuTrangThaiDon;
 import com.linhkien.model.VanChuyen;
+import com.linhkien.util.JdbcHelper;
 
 import java.sql.Connection;
-import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Timestamp;
-import java.sql.Types;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,13 +40,9 @@ public class DonHangDAO {
         Connection conn = DatabaseConnection.getConnection();
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, dh.getMaNguoiDung());
-            if (dh.getMaGiamGia() != null) {
-                ps.setInt(2, dh.getMaGiamGia());
-            } else {
-                ps.setNull(2, Types.INTEGER);
-            }
+            JdbcHelper.setSoNguyenHoacNull(ps, 2, dh.getMaGiamGia());
             ps.setString(3, dh.getMaYeuCau());
-            setThoiGian(ps, 4, dh.getNgayDat());
+            JdbcHelper.setThoiGian(ps, 4, dh.getNgayDat());
             ps.setString(5, dh.getTenNguoiNhan());
             ps.setString(6, dh.getSoDienThoaiNhan());
             ps.setString(7, dh.getDiaChiNhan());
@@ -279,10 +271,10 @@ public class DonHangDAO {
             ps.setInt(3, soLuongThayDoi);
             ps.setInt(4, tonTruoc);
             ps.setInt(5, tonSau);
-            setSoNguyenHoacNull(ps, 6, maDonHang);
-            setSoNguyenHoacNull(ps, 7, maNguoiThucHien);
+            JdbcHelper.setSoNguyenHoacNull(ps, 6, maDonHang);
+            JdbcHelper.setSoNguyenHoacNull(ps, 7, maNguoiThucHien);
             ps.setString(8, lyDo);
-            setThoiGian(ps, 9, LocalDateTime.now());
+            JdbcHelper.setThoiGian(ps, 9, LocalDateTime.now());
             ps.executeUpdate();
         }
     }
@@ -302,8 +294,8 @@ public class DonHangDAO {
             ps.setInt(1, maDonHang);
             ps.setString(2, trangThaiCu);
             ps.setString(3, trangThaiMoi);
-            setSoNguyenHoacNull(ps, 4, maNguoiThucHien);
-            setThoiGian(ps, 5, LocalDateTime.now());
+            JdbcHelper.setSoNguyenHoacNull(ps, 4, maNguoiThucHien);
+            JdbcHelper.setThoiGian(ps, 5, LocalDateTime.now());
             ps.setString(6, ghiChu);
             ps.executeUpdate();
         }
@@ -332,7 +324,7 @@ public class DonHangDAO {
                     int nguoi = rs.getInt("MaNguoiThucHien");
                     ls.setMaNguoiThucHien(rs.wasNull() ? null : nguoi);
                     ls.setTenNguoiThucHien(rs.getString("HoTen"));
-                    ls.setThoiDiem(docThoiGian(rs, "ThoiDiem"));
+                    ls.setThoiDiem(JdbcHelper.docThoiGian(rs, "ThoiDiem"));
                     ls.setGhiChu(rs.getString("GhiChu"));
                     list.add(ls);
                 }
@@ -357,9 +349,9 @@ public class DonHangDAO {
             ps.setString(2, vc.getDonViVanChuyen());
             ps.setString(3, vc.getMaVanDon());
             ps.setString(4, vc.getTrangThaiGiao());
-            setThoiGian(ps, 5, vc.getNgayBanGiao());
-            setNgay(ps, 6, vc.getNgayGiaoDuKien());
-            setThoiGian(ps, 7, vc.getNgayGiaoThucTe());
+            JdbcHelper.setThoiGian(ps, 5, vc.getNgayBanGiao());
+            JdbcHelper.setNgay(ps, 6, vc.getNgayGiaoDuKien());
+            JdbcHelper.setThoiGian(ps, 7, vc.getNgayGiaoThucTe());
             ps.setBoolean(8, vc.isDaThuCOD());
             ps.setString(9, vc.getGhiChu());
             ps.executeUpdate();
@@ -388,9 +380,9 @@ public class DonHangDAO {
                     vc.setDonViVanChuyen(rs.getString("DonViVanChuyen"));
                     vc.setMaVanDon(rs.getString("MaVanDon"));
                     vc.setTrangThaiGiao(rs.getString("TrangThaiGiao"));
-                    vc.setNgayBanGiao(docThoiGian(rs, "NgayBanGiao"));
-                    vc.setNgayGiaoDuKien(docNgay(rs, "NgayGiaoDuKien"));
-                    vc.setNgayGiaoThucTe(docThoiGian(rs, "NgayGiaoThucTe"));
+                    vc.setNgayBanGiao(JdbcHelper.docThoiGian(rs, "NgayBanGiao"));
+                    vc.setNgayGiaoDuKien(JdbcHelper.docNgay(rs, "NgayGiaoDuKien"));
+                    vc.setNgayGiaoThucTe(JdbcHelper.docThoiGian(rs, "NgayGiaoThucTe"));
                     vc.setDaThuCOD(rs.getBoolean("DaThuCOD"));
                     vc.setGhiChu(rs.getString("GhiChu"));
                     return vc;
@@ -419,7 +411,7 @@ public class DonHangDAO {
         Connection conn = DatabaseConnection.getConnection();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, trangThaiGiao);
-            setThoiGian(ps, 2, ngayGiaoThucTe);
+            JdbcHelper.setThoiGian(ps, 2, ngayGiaoThucTe);
             ps.setBoolean(3, daThuCOD);
             ps.setString(4, ghiChu);
             ps.setInt(5, maDonHang);
@@ -428,16 +420,18 @@ public class DonHangDAO {
     }
 
     // ==========================================
-    // TIỆN ÍCH ÁNH XẠ VÀ THỜI GIAN (tương thích SQLite và SQL Server)
+    // TIỆN ÍCH ÁNH XẠ
     // ==========================================
 
     private static final String SELECT_DON = """
-        SELECT dh.MaDonHang, dh.MaNguoiDung, dh.MaGiamGia, dh.MaYeuCau, dh.NgayDat, dh.TenNguoiNhan,
-               dh.SoDienThoaiNhan, dh.DiaChiNhan, dh.TongTienHang, dh.PhiVanChuyen, dh.SoTienGiam,
-               dh.TongThanhToan, dh.PhuongThucThanhToan, dh.TrangThaiThanhToan, dh.TrangThaiDon,
+        SELECT dh.MaDonHang, dh.MaNguoiDung, dh.MaGiamGia, mg.MaCode AS MaCodeGiamGia,
+               dh.MaYeuCau, dh.NgayDat, dh.TenNguoiNhan, dh.SoDienThoaiNhan, dh.DiaChiNhan,
+               dh.TongTienHang, dh.PhiVanChuyen, dh.SoTienGiam, dh.TongThanhToan,
+               dh.PhuongThucThanhToan, dh.TrangThaiThanhToan, dh.TrangThaiDon,
                dh.DaHoanKho, dh.GhiChu, nd.HoTen AS TenKhachHang
         FROM DonHang dh
         JOIN NguoiDung nd ON dh.MaNguoiDung = nd.MaNguoiDung
+        LEFT JOIN MaGiamGia mg ON dh.MaGiamGia = mg.MaGiamGia
     """;
 
     private DonHang mapDon(ResultSet rs) throws SQLException {
@@ -446,8 +440,9 @@ public class DonHangDAO {
         dh.setMaNguoiDung(rs.getInt("MaNguoiDung"));
         int giam = rs.getInt("MaGiamGia");
         dh.setMaGiamGia(rs.wasNull() ? null : giam);
+        dh.setMaCodeGiamGia(rs.getString("MaCodeGiamGia"));
         dh.setMaYeuCau(rs.getString("MaYeuCau"));
-        dh.setNgayDat(docThoiGian(rs, "NgayDat"));
+        dh.setNgayDat(JdbcHelper.docThoiGian(rs, "NgayDat"));
         dh.setTenNguoiNhan(rs.getString("TenNguoiNhan"));
         dh.setSoDienThoaiNhan(rs.getString("SoDienThoaiNhan"));
         dh.setDiaChiNhan(rs.getString("DiaChiNhan"));
@@ -462,65 +457,5 @@ public class DonHangDAO {
         dh.setGhiChu(rs.getString("GhiChu"));
         dh.setTenKhachHang(rs.getString("TenKhachHang"));
         return dh;
-    }
-
-    private static boolean laSqlite() {
-        return "sqlite".equalsIgnoreCase(DatabaseConnection.getActiveDbType());
-    }
-
-    private static void setSoNguyenHoacNull(PreparedStatement ps, int index, Integer value) throws SQLException {
-        if (value != null) {
-            ps.setInt(index, value);
-        } else {
-            ps.setNull(index, Types.INTEGER);
-        }
-    }
-
-    private static void setThoiGian(PreparedStatement ps, int index, LocalDateTime time) throws SQLException {
-        if (time == null) {
-            ps.setNull(index, laSqlite() ? Types.VARCHAR : Types.TIMESTAMP);
-        } else if (laSqlite()) {
-            ps.setString(index, time.toString());
-        } else {
-            ps.setTimestamp(index, Timestamp.valueOf(time));
-        }
-    }
-
-    private static void setNgay(PreparedStatement ps, int index, LocalDate date) throws SQLException {
-        if (date == null) {
-            ps.setNull(index, laSqlite() ? Types.VARCHAR : Types.DATE);
-        } else if (laSqlite()) {
-            ps.setString(index, date.toString());
-        } else {
-            ps.setDate(index, Date.valueOf(date));
-        }
-    }
-
-    private static LocalDateTime docThoiGian(ResultSet rs, String cot) throws SQLException {
-        if (laSqlite()) {
-            String s = rs.getString(cot);
-            if (s == null || s.isBlank()) {
-                return null;
-            }
-            try {
-                return LocalDateTime.parse(s.replace(' ', 'T'));
-            } catch (DateTimeParseException e) {
-                return null;
-            }
-        }
-        Timestamp ts = rs.getTimestamp(cot);
-        return ts != null ? ts.toLocalDateTime() : null;
-    }
-
-    private static LocalDate docNgay(ResultSet rs, String cot) throws SQLException {
-        if (laSqlite()) {
-            String s = rs.getString(cot);
-            if (s == null || s.length() < 10) {
-                return null;
-            }
-            return LocalDate.parse(s.substring(0, 10));
-        }
-        Date d = rs.getDate(cot);
-        return d != null ? d.toLocalDate() : null;
     }
 }

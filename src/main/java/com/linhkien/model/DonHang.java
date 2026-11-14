@@ -49,6 +49,7 @@ public class DonHang {
 
     // Thuộc tính hiển thị
     private String tenKhachHang;
+    private String maCodeGiamGia;
 
     // Quan hệ Composition: DonHang ◆ ChiTietDonHang (1 - 1..*)
     private List<ChiTietDonHang> danhSachChiTiet = new ArrayList<>();
@@ -276,6 +277,14 @@ public class DonHang {
 
     public void setTenKhachHang(String tenKhachHang) {
         this.tenKhachHang = tenKhachHang;
+    }
+
+    public String getMaCodeGiamGia() {
+        return maCodeGiamGia;
+    }
+
+    public void setMaCodeGiamGia(String maCodeGiamGia) {
+        this.maCodeGiamGia = maCodeGiamGia;
     }
 
     public List<ChiTietDonHang> getDanhSachChiTiet() {

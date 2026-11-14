@@ -3,16 +3,25 @@ package com.linhkien;
 import com.linhkien.config.DatabaseConnection;
 import com.linhkien.config.DatabaseInitializer;
 import com.linhkien.model.ChiTietGioHang;
+import com.linhkien.model.DiaChiNhanHang;
 import com.linhkien.model.DonHang;
 import com.linhkien.model.GioHang;
+import com.linhkien.model.LichSuTonKho;
 import com.linhkien.model.LichSuTrangThaiDon;
 import com.linhkien.model.LinhKien;
+import com.linhkien.model.MaGiamGia;
+import com.linhkien.model.ThanhToan;
+import com.linhkien.model.ThongSoKyThuat;
 import com.linhkien.model.VanChuyen;
+import com.linhkien.service.DiaChiService;
 import com.linhkien.service.DonHangService;
 import com.linhkien.service.GioHangService;
 import com.linhkien.service.LinhKienService;
+import com.linhkien.service.MaGiamGiaService;
+import com.linhkien.service.ThanhToanService;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -43,6 +52,9 @@ public class AppTest {
         testQuanLyLinhKien(linhKienService);
         testQuanLyGioHang(linhKienService, gioHangService);
         testDatHangVaQuanLyDon(linhKienService, gioHangService, donHangService);
+        testLichSuTonKhoVaThongSo(linhKienService);
+        testSoDiaChiVaBaoMat();
+        testMaGiamGiaVaThanhToan(linhKienService, gioHangService, donHangService);
 
         System.out.println("\n=========================================================================");
         System.out.printf("  KẾT QUẢ KIỂM THỬ: %d THÀNH CÔNG, %d THẤT BẠI\n", totalPassed, totalFailed);
@@ -424,6 +436,140 @@ public class AppTest {
             "Khôi phục tồn kho về mức ban đầu sau kiểm thử");
         ghService.themVaoGio(khach, 1, 2);
         ghService.themVaoGio(khach, 4, 3);
+    }
+
+    private static void testLichSuTonKhoVaThongSo(LinhKienService lkService) {
+        System.out.println("\n--- [TEST 5] Kiểm tra Lịch sử tồn kho (NFR03) và Thông số kỹ thuật ---");
+        LinhKien before = lkService.timTheoMa(1);
+        int tonBanDau = before.getSoLuongTon();
+
+        lkService.dieuChinhTonKho(1, 5, "Nhập bổ sung kiểm thử", 3);
+        lkService.dieuChinhTonKho(1, -5, "Xuất kiểm kê kiểm thử", 3);
+        LinhKien after = lkService.timTheoMa(1);
+        assertTest(after.getSoLuongTon() == tonBanDau,
+            "Nhập +5 và điều chỉnh -5 trả tồn kho Arduino về đúng ban đầu: " + tonBanDau);
+
+        List<LichSuTonKho> history = lkService.layLichSuTonKho(1);
+        boolean coDieuChinh = !history.isEmpty() && LichSuTonKho.DIEU_CHINH.equals(history.get(0).getLoaiBienDong())
+            && history.get(0).getSoLuongThayDoi() == -5;
+        boolean coNhap = history.size() >= 2 && LichSuTonKho.NHAP.equals(history.get(1).getLoaiBienDong())
+            && history.get(1).getSoLuongThayDoi() == 5;
+        assertTest(coNhap && coDieuChinh,
+            "Nhật ký tồn kho ghi nhận chính xác cả biến động NHAP (+5) và DIEU_CHINH (-5)");
+
+        List<ThongSoKyThuat> oldSpecs = lkService.layThongSoKyThuat(1);
+        List<ThongSoKyThuat> updated = lkService.capNhatThongSoKyThuat(1, List.of(
+            new ThongSoKyThuat(1, "Flash Memory", "32", "KB"),
+            new ThongSoKyThuat(1, "Clock Speed", "16", "MHz")
+        ));
+        LinhKien reloaded = lkService.timTheoMa(1);
+        assertTest(updated.size() == 2 && reloaded.getDanhSachThongSo().size() == 2,
+            "Cập nhật và tải đầy đủ thông số kỹ thuật mở rộng từ bảng ThongSoKyThuat");
+        lkService.capNhatThongSoKyThuat(1, oldSpecs);
+    }
+
+    private static void testSoDiaChiVaBaoMat() {
+        System.out.println("\n--- [TEST 6] Kiểm tra Sổ địa chỉ nhận hàng (FR06) ---");
+        DiaChiService diaChiService = new DiaChiService();
+        List<DiaChiNhanHang> initial = diaChiService.layDanhSachDiaChi(1);
+        assertTest(!initial.isEmpty(), "Khách hàng 1 có sẵn địa chỉ mẫu trong CSDL (" + initial.size() + " địa chỉ)");
+
+        DiaChiNhanHang moi = new DiaChiNhanHang();
+        moi.setMaNguoiDung(1);
+        moi.setTenNguoiNhan("Nguyễn Văn An (Cơ quan)");
+        moi.setSoDienThoaiNhan("0912345678");
+        moi.setDiaChiChiTiet("99 Lý Tự Trọng");
+        moi.setPhuongXa("Bến Thành");
+        moi.setTinhThanh("TP. Hồ Chí Minh");
+        moi.setLaMacDinh(true);
+
+        DiaChiNhanHang saved = diaChiService.luuDiaChi(moi);
+        DiaChiNhanHang macDinhHienTai = diaChiService.layDiaChiMacDinh(1);
+        assertTest(saved.getMaDiaChi() > 0 && macDinhHienTai != null
+                && macDinhHienTai.getMaDiaChi() == saved.getMaDiaChi(),
+            "Thêm địa chỉ mặc định mới tự động bỏ mặc định địa chỉ cũ");
+
+        if (!initial.isEmpty()) {
+            diaChiService.datDiaChiMacDinh(1, initial.get(0).getMaDiaChi());
+        }
+        boolean deleted = diaChiService.xoaDiaChi(1, saved.getMaDiaChi());
+        assertTest(deleted, "Khôi phục địa chỉ mặc định ban đầu và xóa địa chỉ kiểm thử thành công");
+    }
+
+    private static void testMaGiamGiaVaThanhToan(LinhKienService lkService, GioHangService ghService, DonHangService dhService) {
+        System.out.println("\n--- [TEST 7] Kiểm tra Mã giảm giá (Module 2) & Thanh toán/Hoàn tiền (Module 3) ---");
+        MaGiamGiaService couponService = new MaGiamGiaService();
+        ThanhToanService paymentService = new ThanhToanService();
+
+        String code = "TST" + (System.currentTimeMillis() % 1000000L);
+        MaGiamGia mg = new MaGiamGia(
+            code,
+            MaGiamGia.PHAN_TRAM,
+            BigDecimal.valueOf(10),
+            BigDecimal.valueOf(100000),
+            2,
+            LocalDateTime.now().minusHours(1),
+            LocalDateTime.now().plusDays(7)
+        );
+        MaGiamGia created = couponService.themMaGiamGia(mg, 4);
+        assertTest(created.getMaGiamGia() > 0 && code.equals(created.getMaCode()),
+            "Tạo mã giảm giá mới thành công: " + code);
+
+        assertTest(IllegalStateException.class.equals(batLoi(() ->
+                couponService.kiemTraMaGiamGia(code, BigDecimal.valueOf(50000)))),
+            "Từ chối áp dụng mã giảm giá khi đơn hàng chưa đạt mức tối thiểu");
+
+        MaGiamGia unused = couponService.themMaGiamGia(
+            new MaGiamGia("DEL" + (System.currentTimeMillis() % 100000L), MaGiamGia.SO_TIEN,
+                BigDecimal.valueOf(5000), BigDecimal.ZERO, 1,
+                LocalDateTime.now().minusHours(1), LocalDateTime.now().plusDays(1)), 4);
+        assertTest(couponService.xoaMaGiamGia(unused.getMaGiamGia(), 4),
+            "Xóa mã giảm giá chưa sử dụng thành công");
+
+        ghService.lamTrongGio(1);
+        ghService.themVaoGio(1, 1, 2);
+        LinhKien lk1 = lkService.timTheoMa(1);
+        int ton1Before = lk1.getSoLuongTon();
+        BigDecimal subtotal = lk1.getGiaBan().multiply(BigDecimal.valueOf(2));
+        DonHang order = dhService.taoDon(1, "Nguyễn Văn An", "0912345678",
+            "123 Lê Lợi, Q.1, TP.HCM", "CHUYEN_KHOAN", "TEST-COUPON-" + System.currentTimeMillis(),
+            "Giao giờ hành chính", "standard", code);
+
+        BigDecimal expectedDiscount = created.tinhSoTienGiam(subtotal);
+        BigDecimal expectedTotal = subtotal.add(BigDecimal.valueOf(25000)).subtract(expectedDiscount);
+        assertTest(order.getSoTienGiam().compareTo(expectedDiscount) == 0
+                && order.getTongThanhToan().compareTo(expectedTotal) == 0
+                && code.equals(order.getMaCodeGiamGia())
+                && couponService.layTheoMa(created.getMaGiamGia()).getSoLuotDaDung() == 1,
+            "Đặt hàng áp dụng mã giảm giá 10% đúng công thức và tăng lượt dùng lên 1");
+
+        List<ThanhToan> initTx = paymentService.layGiaoDichTheoDon(order.getMaDonHang());
+        assertTest(initTx.size() == 1 && ThanhToan.TRANG_THAI_CHO.equals(initTx.get(0).getTrangThai()),
+            "Khởi tạo giao dịch ThanhToan (THU / CHO_XAC_NHAN) cùng lúc tạo đơn");
+
+        ThanhToan confirmedTx = paymentService.xacNhanThanhToan(order.getMaDonHang(), "ACB-998877", 4);
+        DonHang paidOrder = dhService.layChiTietDon(order.getMaDonHang(), 4);
+        assertTest(ThanhToan.TRANG_THAI_THANH_CONG.equals(confirmedTx.getTrangThai())
+                && "DA_THANH_TOAN".equals(paidOrder.getTrangThaiThanhToan()),
+            "Nhân viên xác nhận thanh toán chuyển khoản thành công -> DA_THANH_TOAN");
+
+        dhService.huyDon(order.getMaDonHang(), 1, "Kiểm thử hủy đơn có mã giảm giá & hoàn tiền");
+        DonHang cancelledOrder = dhService.layChiTietDon(order.getMaDonHang(), 4);
+        assertTest(DonHang.DA_HUY.equals(cancelledOrder.getTrangThaiDon())
+                && "DANG_HOAN_TIEN".equals(cancelledOrder.getTrangThaiThanhToan())
+                && lkService.timTheoMa(1).getSoLuongTon() == ton1Before
+                && couponService.layTheoMa(created.getMaGiamGia()).getSoLuotDaDung() == 0,
+            "Hủy đơn đã thanh toán chuyển DANG_HOAN_TIEN, hoàn kho và hoàn lại lượt dùng mã giảm giá");
+
+        ThanhToan refundTx = paymentService.xacNhanHoanTien(order.getMaDonHang(), "REF-998877", 4);
+        DonHang refundedOrder = dhService.layChiTietDon(order.getMaDonHang(), 4);
+        assertTest(ThanhToan.LOAI_HOAN.equals(refundTx.getLoaiGiaoDich())
+                && ThanhToan.TRANG_THAI_THANH_CONG.equals(refundTx.getTrangThai())
+                && "DA_HOAN_TIEN".equals(refundedOrder.getTrangThaiThanhToan()),
+            "Xác nhận hoàn tiền tạo giao dịch HOAN/THANH_CONG và cập nhật đơn -> DA_HOAN_TIEN");
+
+        ghService.themVaoGio(1, 1, 2);
+        ghService.themVaoGio(1, 4, 3);
     }
 
     private static void assertTest(boolean condition, String message) {

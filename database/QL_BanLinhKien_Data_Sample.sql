@@ -63,5 +63,30 @@ INSERT INTO ChiTietGioHang (MaGioHang, MaLinhKien, SoLuong, NgayThem) VALUES
 (1, 4, 3, SYSDATETIME()); -- 3 x Cảm biến DHT11
 GO
 
+-- 6. Nạp địa chỉ nhận hàng mặc định cho Khách hàng 1
+SET IDENTITY_INSERT DiaChiNhanHang ON;
+INSERT INTO DiaChiNhanHang (MaDiaChi, MaNguoiDung, TenNguoiNhan, SoDienThoaiNhan, DiaChiChiTiet, PhuongXa, TinhThanh, LaMacDinh) VALUES
+(1, 1, N'Nguyễn Văn An', '0912345678', N'12 Nguyễn Hữu Thọ', N'Tân Phong, Quận 7', N'TP. Hồ Chí Minh', 1);
+SET IDENTITY_INSERT DiaChiNhanHang OFF;
+GO
+
+-- 7. Nạp thông số kỹ thuật mở rộng mẫu
+INSERT INTO ThongSoKyThuat (MaLinhKien, TenThongSo, GiaTri, DonVi) VALUES
+(1, N'Vi điều khiển', N'ATmega328P', NULL),
+(1, N'Xung nhịp', N'16', N'MHz'),
+(2, N'Vi điều khiển', N'ESP-WROOM-32 Dual Core', NULL),
+(2, N'Xung nhịp', N'240', N'MHz'),
+(4, N'Dải đo nhiệt độ', N'0 ~ 50', N'°C'),
+(5, N'Khoảng cách đo', N'2 ~ 400', N'cm');
+GO
+
+-- 8. Nạp mã giảm giá mẫu
+SET IDENTITY_INSERT MaGiamGia ON;
+INSERT INTO MaGiamGia (MaGiamGia, MaCode, LoaiGiam, GiaTriGiam, DonHangToiThieu, SoLuotToiDa, SoLuotDaDung, NgayBatDau, NgayKetThuc) VALUES
+(1, 'GIAM10K', 'SO_TIEN', 10000, 100000, 500, 0, '2025-01-01', '2030-12-31'),
+(2, 'SALE10', 'PHAN_TRAM', 10, 200000, 100, 0, '2025-01-01', '2030-12-31');
+SET IDENTITY_INSERT MaGiamGia OFF;
+GO
+
 PRINT N'Nạp dữ liệu mẫu ban đầu thành công!';
 GO

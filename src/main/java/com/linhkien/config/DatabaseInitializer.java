@@ -14,13 +14,17 @@ import java.sql.Statement;
 public class DatabaseInitializer {
 
     public static void initializeDatabase() {
-        try (Connection conn = DatabaseConnection.getConnection()) {
+        try {
+            Connection conn = DatabaseConnection.getConnection();
             String dbType = DatabaseConnection.getActiveDbType();
             if ("sqlite".equalsIgnoreCase(dbType)) {
                 initSqliteSchema(conn);
                 if (DatabaseConfig.isInitSampleData()) {
                     seedSqliteSampleData(conn);
                     seedNhanVienMau(conn);
+                    seedDiaChiMau(conn);
+                    seedThongSoMau(conn);
+                    seedMaGiamGiaMau(conn);
                 }
             } else if ("sqlserver".equalsIgnoreCase(dbType)) {
                 checkSqlServerSchema(conn);
@@ -85,7 +89,22 @@ public class DatabaseInitializer {
                 );
             """);
 
-            // 4. GioHang
+            // 4. DiaChiNhanHang
+            stmt.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS DiaChiNhanHang (
+                    MaDiaChi INTEGER PRIMARY KEY AUTOINCREMENT,
+                    MaNguoiDung INTEGER NOT NULL,
+                    TenNguoiNhan TEXT NOT NULL,
+                    SoDienThoaiNhan TEXT NOT NULL,
+                    DiaChiChiTiet TEXT NOT NULL,
+                    PhuongXa TEXT NOT NULL,
+                    TinhThanh TEXT NOT NULL,
+                    LaMacDinh INTEGER NOT NULL DEFAULT 0,
+                    FOREIGN KEY (MaNguoiDung) REFERENCES NguoiDung(MaNguoiDung)
+                );
+            """);
+
+            // 5. GioHang
             stmt.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS GioHang (
                     MaGioHang INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,7 +115,7 @@ public class DatabaseInitializer {
                 );
             """);
 
-            // 5. ChiTietGioHang
+            // 6. ChiTietGioHang
             stmt.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS ChiTietGioHang (
                     MaGioHang INTEGER NOT NULL,
@@ -109,7 +128,7 @@ public class DatabaseInitializer {
                 );
             """);
 
-            // 6. ThongSoKyThuat
+            // 7. ThongSoKyThuat
             stmt.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS ThongSoKyThuat (
                     MaThongSo INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -121,7 +140,23 @@ public class DatabaseInitializer {
                 );
             """);
 
-            // 7. DonHang
+            // 8. MaGiamGia
+            stmt.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS MaGiamGia (
+                    MaGiamGia INTEGER PRIMARY KEY AUTOINCREMENT,
+                    MaCode TEXT NOT NULL UNIQUE,
+                    LoaiGiam TEXT NOT NULL CHECK (LoaiGiam IN ('PHAN_TRAM','SO_TIEN')),
+                    GiaTriGiam NUMERIC NOT NULL CHECK (GiaTriGiam > 0),
+                    DonHangToiThieu NUMERIC NOT NULL DEFAULT 0,
+                    SoLuotToiDa INTEGER NULL,
+                    SoLuotDaDung INTEGER NOT NULL DEFAULT 0,
+                    NgayBatDau TEXT NOT NULL,
+                    NgayKetThuc TEXT NOT NULL,
+                    CHECK (NgayKetThuc > NgayBatDau)
+                );
+            """);
+
+            // 9. DonHang
             stmt.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS DonHang (
                     MaDonHang INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -144,11 +179,12 @@ public class DatabaseInitializer {
                     DaHoanKho INTEGER NOT NULL DEFAULT 0,
                     GhiChu TEXT NULL,
                     FOREIGN KEY (MaNguoiDung) REFERENCES NguoiDung(MaNguoiDung),
+                    FOREIGN KEY (MaGiamGia) REFERENCES MaGiamGia(MaGiamGia),
                     CHECK (TongThanhToan = TongTienHang + PhiVanChuyen - SoTienGiam)
                 );
             """);
 
-            // 8. ChiTietDonHang
+            // 10. ChiTietDonHang
             stmt.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS ChiTietDonHang (
                     MaDonHang INTEGER NOT NULL,
@@ -161,7 +197,25 @@ public class DatabaseInitializer {
                 );
             """);
 
-            // 9. VanChuyen
+            // 11. ThanhToan
+            stmt.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS ThanhToan (
+                    MaThanhToan INTEGER PRIMARY KEY AUTOINCREMENT,
+                    MaDonHang INTEGER NOT NULL,
+                    LoaiGiaoDich TEXT NOT NULL CHECK (LoaiGiaoDich IN ('THU','HOAN')),
+                    PhuongThuc TEXT NOT NULL CHECK (PhuongThuc IN ('COD','CHUYEN_KHOAN')),
+                    SoTien NUMERIC NOT NULL CHECK (SoTien > 0),
+                    MaThamChieu TEXT NULL,
+                    TrangThai TEXT NOT NULL DEFAULT 'CHO_XAC_NHAN'
+                        CHECK (TrangThai IN ('CHO_XAC_NHAN','THANH_CONG','THAT_BAI')),
+                    MaNguoiXacNhan INTEGER NULL,
+                    ThoiDiem TEXT NOT NULL,
+                    FOREIGN KEY (MaDonHang) REFERENCES DonHang(MaDonHang),
+                    FOREIGN KEY (MaNguoiXacNhan) REFERENCES NguoiDung(MaNguoiDung)
+                );
+            """);
+
+            // 12. VanChuyen
             stmt.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS VanChuyen (
                     MaVanChuyen INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -179,7 +233,7 @@ public class DatabaseInitializer {
                 );
             """);
 
-            // 10. LichSuTrangThaiDon
+            // 13. LichSuTrangThaiDon
             stmt.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS LichSuTrangThaiDon (
                     MaLichSu INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -194,7 +248,7 @@ public class DatabaseInitializer {
                 );
             """);
 
-            // 11. LichSuTonKho
+            // 14. LichSuTonKho
             stmt.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS LichSuTonKho (
                     MaLichSu INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -217,9 +271,7 @@ public class DatabaseInitializer {
     }
 
     /**
-     * Bổ sung các tài khoản nhân viên mẫu (đồng bộ với QL_BanLinhKien_Data_Sample.sql) để thử chức năng
-     * xử lý đơn hàng: ID 2 nhân viên bán hàng, ID 3 nhân viên kho, ID 4 quản trị viên.
-     * Dùng INSERT OR IGNORE nên chạy lại nhiều lần hoặc trên CSDL cũ đều an toàn.
+     * Bổ sung các tài khoản nhân viên mẫu (đồng bộ với QL_BanLinhKien_Data_Sample.sql).
      */
     private static void seedNhanVienMau(Connection conn) throws SQLException {
         String sql = """
@@ -245,19 +297,94 @@ public class DatabaseInitializer {
         }
     }
 
+    private static void seedDiaChiMau(Connection conn) throws SQLException {
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM DiaChiNhanHang")) {
+            if (rs.next() && rs.getInt(1) > 0) {
+                return;
+            }
+        }
+        String sql = """
+            INSERT INTO DiaChiNhanHang (MaDiaChi, MaNguoiDung, TenNguoiNhan, SoDienThoaiNhan, DiaChiChiTiet, PhuongXa, TinhThanh, LaMacDinh)
+            VALUES (1, 1, ?, ?, ?, ?, ?, 1)
+        """;
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, "Nguyễn Văn An");
+            ps.setString(2, "0912345678");
+            ps.setString(3, "12 Nguyễn Hữu Thọ");
+            ps.setString(4, "Tân Phong, Quận 7");
+            ps.setString(5, "TP. Hồ Chí Minh");
+            ps.executeUpdate();
+        }
+    }
+
+    private static void seedThongSoMau(Connection conn) throws SQLException {
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM ThongSoKyThuat")) {
+            if (rs.next() && rs.getInt(1) > 0) {
+                return;
+            }
+        }
+        String sql = "INSERT INTO ThongSoKyThuat (MaLinhKien, TenThongSo, GiaTri, DonVi) VALUES (?, ?, ?, ?)";
+        Object[][] specs = {
+            {1, "Vi điều khiển", "ATmega328P", null},
+            {1, "Xung nhịp", "16", "MHz"},
+            {1, "Flash / SRAM", "32 KB / 2 KB", null},
+            {2, "Vi điều khiển", "ESP-WROOM-32 Dual Core", null},
+            {2, "Xung nhịp", "240", "MHz"},
+            {2, "Kết nối không dây", "WiFi 802.11 b/g/n & BLE 4.2", null},
+            {3, "Vi điều khiển", "ARM Cortex-M3 STM32F103C8T6", null},
+            {3, "Xung nhịp", "72", "MHz"},
+            {4, "Dải đo nhiệt độ", "0 ~ 50", "°C"},
+            {4, "Dải đo độ ẩm", "20 ~ 90", "%RH"},
+            {5, "Khoảng cách đo", "2 ~ 400", "cm"},
+            {6, "Độ phân giải", "128 × 64", "pixel"}
+        };
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (Object[] row : specs) {
+                ps.setInt(1, (Integer) row[0]);
+                ps.setString(2, (String) row[1]);
+                ps.setString(3, (String) row[2]);
+                ps.setString(4, (String) row[3]);
+                ps.executeUpdate();
+            }
+        }
+    }
+
+    private static void seedMaGiamGiaMau(Connection conn) throws SQLException {
+        String sql = """
+            INSERT OR IGNORE INTO MaGiamGia (MaGiamGia, MaCode, LoaiGiam, GiaTriGiam, DonHangToiThieu, SoLuotToiDa, SoLuotDaDung, NgayBatDau, NgayKetThuc)
+            VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+        """;
+        Object[][] coupons = {
+            {1, "GIAM10K", "SO_TIEN", 10000L, 100000L, 500, "2025-01-01T00:00:00", "2030-12-31T23:59:59"},
+            {2, "SALE10", "PHAN_TRAM", 10L, 200000L, 100, "2025-01-01T00:00:00", "2030-12-31T23:59:59"}
+        };
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (Object[] c : coupons) {
+                ps.setInt(1, (Integer) c[0]);
+                ps.setString(2, (String) c[1]);
+                ps.setString(3, (String) c[2]);
+                ps.setBigDecimal(4, BigDecimal.valueOf((Long) c[3]));
+                ps.setBigDecimal(5, BigDecimal.valueOf((Long) c[4]));
+                ps.setInt(6, (Integer) c[5]);
+                ps.setString(7, (String) c[6]);
+                ps.setString(8, (String) c[7]);
+                ps.executeUpdate();
+            }
+        }
+    }
+
     private static void seedSqliteSampleData(Connection conn) throws SQLException {
-        // Kiểm tra xem đã có dữ liệu linh kiện chưa
         try (Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM LinhKien")) {
             if (rs.next() && rs.getInt(1) > 0) {
-                // Đã có dữ liệu, không cần chèn lại
                 return;
             }
         }
 
         System.out.println("[CSDL] Đang nạp dữ liệu mẫu ban đầu (Danh mục, Linh kiện, Tài khoản, Giỏ hàng)...");
 
-        // 1. Thêm danh mục mẫu
         String sqlDM = "INSERT INTO DanhMucLinhKien (MaDanhMuc, TenDanhMuc, MaDanhMucCha, MoTa, TrangThai) VALUES (?, ?, ?, ?, ?)";
         try (PreparedStatement ps = conn.prepareStatement(sqlDM)) {
             insertDM(ps, 1, "Vi điều khiển & Module", null, "Các loại board mạch lập trình Arduino, ESP32, STM32", "HIEN");
@@ -267,7 +394,6 @@ public class DatabaseInitializer {
             insertDM(ps, 5, "Màn hình & Hiển thị", null, "Màn hình OLED, LCD1602, LED 7 thanh", "HIEN");
         }
 
-        // 2. Thêm linh kiện mẫu phong phú
         String sqlLK = """
             INSERT INTO LinhKien (
                 MaLinhKien, MaSKU, TenLinhKien, MaDanhMuc, NhaSanXuat, MoTa,
@@ -277,68 +403,57 @@ public class DatabaseInitializer {
         """;
 
         try (PreparedStatement ps = conn.prepareStatement(sqlLK)) {
-            // Linh kiện 1: Arduino Uno R3
             insertLK(ps, 1, "MCU-ARD-UNO-R3", "Kit Arduino Uno R3 Chip Cắm DIP (Kèm cáp USB)",
                     1, "Arduino", "Bo mạch vi điều khiển ATmega328P phổ biến cho người mới bắt đầu",
                     "DIP", "5V DC", "UART, I2C, SPI", "https://docs.arduino.cc/datasheets/uno-r3.pdf",
                     "Bộ", 135000, 45, 10, "DANG_BAN");
 
-            // Linh kiện 2: ESP32 NodeMCU
             insertLK(ps, 2, "MCU-ESP32-DEVKIT", "Module ESP32 DevKit V1 30 Chân WiFi + Bluetooth",
                     1, "Espressif", "Chip SoC ESP-WROOM-32 2 nhân 240MHz hỗ trợ cả WiFi và BLE 4.2",
                     "MODULE", "3.3V - 5V", "WiFi, BLE, UART, SPI, I2C", "https://espressif.com/esp32.pdf",
                     "Cái", 95000, 60, 15, "DANG_BAN");
 
-            // Linh kiện 3: STM32F103C8T6 Blue Pill
             insertLK(ps, 3, "MCU-STM32-BLUEPILL", "Kit STM32F103C8T6 ARM Cortex-M3 (Blue Pill)",
                     1, "STMicroelectronics", "Board ARM 32-bit Cortex-M3 tần số 72MHz, 64KB Flash",
                     "MODULE", "3.3V DC", "SWD, UART, SPI, I2C, CAN", "https://st.com/stm32f103c8.pdf",
                     "Cái", 55000, 30, 10, "DANG_BAN");
 
-            // Linh kiện 4: Cảm biến DHT11
             insertLK(ps, 4, "SS-DHT11-MOD", "Cảm biến nhiệt độ và độ ẩm không khí DHT11",
                     2, "Aosong", "Đo nhiệt độ từ 0-50°C (±2°C) và độ ẩm 20-90% RH (±5%)",
                     "MODULE", "3.3V - 5V", "Single-bus (Digital)", "https://aosong.com/dht11.pdf",
                     "Cái", 25000, 80, 20, "DANG_BAN");
 
-            // Linh kiện 5: Cảm biến khoảng cách siêu âm HC-SR04
             insertLK(ps, 5, "SS-HCSR04-ULTRA", "Cảm biến khoảng cách siêu âm HC-SR04",
                     2, "ElecFreaks", "Khoảng cách đo 2cm đến 400cm, góc đo 15 độ, độ chính xác 3mm",
                     "MODULE", "5V DC", "Trigger/Echo Pulse", "https://cdn.sparkfun.com/hcsr04.pdf",
-                    "Cái", 28000, 5, 10, "DANG_BAN"); // Tồn 5 < ngưỡng 10 -> Test cảnh báo tồn thấp
+                    "Cái", 28000, 5, 10, "DANG_BAN");
 
-            // Linh kiện 6: Màn hình OLED 0.96 inch
             insertLK(ps, 6, "DISP-OLED-096-I2C", "Màn hình OLED 0.96 inch I2C (Ánh sáng Trắng)",
                     5, "Solomon", "Độ phân giải 128x64 pixel, driver SSD1306 hiển thị sắc nét",
                     "MODULE", "3.3V - 5V", "I2C (0x3C)", "https://cdn.adafruit.com/ssd1306.pdf",
                     "Cái", 65000, 25, 5, "DANG_BAN");
 
-            // Linh kiện 7: Tụ hóa 100uF 25V
             insertLK(ps, 7, "PAS-CAP-100UF-25V", "Tụ điện hóa nhôm 100uF 25V (Gói 10 cái)",
                     3, "Nichicon", "Tụ lọc nguồn chất lượng cao, nhiệt độ hoạt động -40°C đến 105°C",
                     "DIP", "Max 25V", "Chân xuyên lỗ (Through-hole)", null,
                     "Gói", 12000, 150, 30, "DANG_BAN");
 
-            // Linh kiện 8: Relay 5V 10A 2 Kênh
             insertLK(ps, 8, "MOD-RELAY-5V-2CH", "Module Rơ-le (Relay) 5V 2 Kênh Có Cách Ly Quang",
                     1, "Songle", "Đóng cắt điện 220V AC 10A hoặc 30V DC 10A an toàn với Opto PC817",
                     "MODULE", "5V DC", "Kích mức Thấp (Low Level)", null,
                     "Cái", 32000, 18, 10, "DANG_BAN");
 
-            // Linh kiện 9: Nguồn Adapter 12V 2A
             insertLK(ps, 9, "PWR-ADAPTER-12V2A", "Nguồn Adapter 12V 2A Jack DC 5.5x2.1mm",
                     4, "MeanWell", "Nguồn cấp điện ổn áp chuẩn chống nhiễu cho vi điều khiển và mạch công suất",
                     "KHAC", "220V AC vào, 12V DC ra", "Jack DC tròn", null,
                     "Cái", 75000, 40, 10, "DANG_BAN");
 
-            // Linh kiện 10: IC Tạo xung NE555
             insertLK(ps, 10, "IC-NE555-DIP8", "IC Tạo dao động NE555P chân cắm DIP-8",
                     3, "Texas Instruments", "Mạch định thời Timer 555 kinh điển dùng cho mạch tạo xung",
                     "DIP", "4.5V - 15V", "Analog/Timer", "https://ti.com/ne555.pdf",
-                    "Cái", 6000, 0, 10, "NGUNG_BAN"); // Ngừng bán & hết hàng -> Test nghiệp vụ ngừng bán
+                    "Cái", 6000, 0, 10, "NGUNG_BAN");
         }
 
-        // 3. Thêm tài khoản người dùng mẫu
         String sqlUser = """
             INSERT INTO NguoiDung (MaNguoiDung, HoTen, Email, SoDienThoai, MatKhauHash, VaiTro, TrangThai, NgayTao)
             VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
@@ -354,7 +469,6 @@ public class DatabaseInitializer {
             ps.executeUpdate();
         }
 
-        // 4. Thêm Giỏ hàng mẫu cho người dùng 1
         String sqlCart = """
             INSERT INTO GioHang (MaGioHang, MaNguoiDung, NgayTao, NgayCapNhat)
             VALUES (1, 1, datetime('now'), datetime('now'))
@@ -363,19 +477,16 @@ public class DatabaseInitializer {
             stmt.executeUpdate(sqlCart);
         }
 
-        // 5. Thêm chi tiết giỏ hàng ban đầu (sản phẩm 1 và sản phẩm 4)
         String sqlCartLine = """
             INSERT INTO ChiTietGioHang (MaGioHang, MaLinhKien, SoLuong, NgayThem)
             VALUES (?, ?, ?, datetime('now'))
         """;
         try (PreparedStatement ps = conn.prepareStatement(sqlCartLine)) {
-            // 2 x Kit Arduino Uno R3
             ps.setInt(1, 1);
             ps.setInt(2, 1);
             ps.setInt(3, 2);
             ps.executeUpdate();
 
-            // 3 x Cảm biến DHT11
             ps.setInt(1, 1);
             ps.setInt(2, 4);
             ps.setInt(3, 3);
@@ -426,7 +537,7 @@ public class DatabaseInitializer {
             try (ResultSet rs = meta.getTables(null, null, "LinhKien", null)) {
                 if (!rs.next()) {
                     System.out.println("[CSDL SQL Server] Chưa tìm thấy bảng LinhKien.");
-                    System.out.println("[CSDL SQL Server] Vui lòng chạy file script 'QL_BanLinhKien.sql' trong SQL Server Management Studio để khởi tạo CSDL.");
+                    System.out.println("[CSDL SQL Server] Vui lòng chạy file script 'database/QL_BanLinhKien.sql' trong SQL Server Management Studio để khởi tạo CSDL.");
                 } else {
                     System.out.println("[CSDL SQL Server] Đã kết nối và xác nhận cấu trúc bảng LinhKien hợp lệ.");
                 }

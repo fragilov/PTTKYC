@@ -7,7 +7,7 @@ Bản UI sử dụng: `frontend`.
 Tại thư mục gốc dự án:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\run-api.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\run-api.ps1
 ```
 
 ```powershell
@@ -38,7 +38,7 @@ POST `/api/products`, `/api/cart`, `/api/orders`, `/api/status`, `/api/shipping`
 ## Kiểm tra
 
 - `npm run build` và `npx tsc --noEmit` trong thư mục UI.
-- `node api-smoke.cjs` tại thư mục gốc: kiểm tra CRUD, giỏ, đặt hàng/phí, chống trùng, trừ/hoàn kho, vận chuyển/lịch sử. Dùng CSDL tạm riêng; dùng cổng test 18080, độc lập backend demo 8080. Runtime được tìm từ `javac` trên PATH.
+- `bun scripts/api-smoke.cjs` (hoặc `node scripts/api-smoke.cjs`) tại thư mục gốc: kiểm tra CRUD, giỏ, đặt hàng/phí, chống trùng, trừ/hoàn kho, vận chuyển/lịch sử. Dùng CSDL tạm riêng; dùng cổng test 18080, độc lập backend demo 8080. Runtime được tìm từ `javac` trên PATH.
 - Bộ kiểm thử Java hiện có: 54 kiểm tra. Dùng JDK 21 cho cả biên dịch và thực thi.
 
 QR ACB hiển thị khi chọn chuyển khoản và trong chi tiết đơn. QR tĩnh; nhập số tiền và nội dung VOLTHUB theo mã đơn. Xác nhận thanh toán thủ công.

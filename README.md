@@ -25,10 +25,10 @@
 ## 1. Nguồn tài liệu gốc & Base thiết kế
 
 Toàn bộ mã nguồn được xây dựng bám sát 100% vào các tài liệu đặc tả của nhóm:
-* **`Section_2.6_Data_Modeling_Database_Design.docx`**: Tài liệu đặc tả mô hình dữ liệu, từ điển dữ liệu (Data Dictionary), các yêu cầu phi chức năng (NFR01–NFR06) và các Use Case (UC01–UC20).
-* **`DataModel_ClassDiagram_ERD.drawio`**: Mô hình lớp khái niệm (Class Diagram gồm 16 classes + 6 enums) và mô hình thực thể liên kết (ERD gồm 14 bảng).
-* **`QL_BanLinhKien.sql`**: Script CSDL chuẩn thiết kế cho Microsoft SQL Server 2019+.
-* **`QL_BanLinhKien_Data_Sample.sql`**: Dữ liệu mẫu kiểm thử phong phú.
+* **`docs/Section_2.6_Data_Modeling_Database_Design.docx`**: Tài liệu đặc tả mô hình dữ liệu, từ điển dữ liệu (Data Dictionary), các yêu cầu phi chức năng (NFR01–NFR06) và các Use Case (UC01–UC20).
+* **`docs/DataModel_ClassDiagram_ERD.drawio`**: Mô hình lớp khái niệm (Class Diagram gồm 16 classes + 6 enums) và mô hình thực thể liên kết (ERD gồm 14 bảng).
+* **`database/QL_BanLinhKien.sql`**: Script CSDL chuẩn thiết kế cho Microsoft SQL Server 2019+.
+* **`database/QL_BanLinhKien_Data_Sample.sql`**: Dữ liệu mẫu kiểm thử phong phú.
 
 ---
 
@@ -154,12 +154,12 @@ Tài khoản mẫu (mật khẩu 123456): ID 1 khách hàng Nguyễn Văn An, ID
 * **Chế độ 1 - SQLite (Mặc định - Chạy ngay lập tức)**:
   ```properties
   db.type=sqlite
-  sqlite.url=jdbc:sqlite:ql_banlinhkien.db
+  sqlite.url=jdbc:sqlite:database/ql_banlinhkien.db
   db.init.sample_data=true
   ```
-  *(Không cần cài thêm bất kỳ phần mềm CSDL nào, hệ thống tự động sinh file `ql_banlinhkien.db` và nạp sẵn 10 linh kiện mẫu).*
+  *(Không cần cài thêm bất kỳ phần mềm CSDL nào, hệ thống tự động sinh file `database/ql_banlinhkien.db` và nạp sẵn 10 linh kiện mẫu).*
 * **Chế độ 2 - Microsoft SQL Server 2019+**:
-  1. Chạy file `QL_BanLinhKien.sql` rồi chạy file `QL_BanLinhKien_Data_Sample.sql` trong SSMS.
+  1. Chạy file `database/QL_BanLinhKien.sql` rồi chạy file `database/QL_BanLinhKien_Data_Sample.sql` trong SSMS.
   2. Sửa `db.properties`:
   ```properties
   db.type=sqlserver
@@ -171,17 +171,17 @@ Tài khoản mẫu (mật khẩu 123456): ID 1 khách hàng Nguyễn Văn An, ID
   ```
 
 ### Các lệnh thực thi (Windows CMD / PowerShell):
-* **Chạy kiểm thử tự động 54 kiểm tra (Automated Test)**:
+* **Chạy kiểm thử tự động (Automated Test)**:
   ```powershell
-  .\test.bat
+  .\scripts\test.bat
   # hoặc trong PowerShell:
-  powershell -ExecutionPolicy Bypass -File .\test.ps1
+  powershell -ExecutionPolicy Bypass -File .\scripts\test.ps1
   ```
 * **Khởi chạy ứng dụng tương tác giao diện Console**:
   ```powershell
-  .\run.bat
+  .\scripts\run.bat
   # hoặc trong PowerShell:
-  powershell -ExecutionPolicy Bypass -File .\run.ps1
+  powershell -ExecutionPolicy Bypass -File .\scripts\run.ps1
   ```
 * **Chạy bằng Maven (nếu máy có cài Maven)**:
   ```bash
@@ -333,7 +333,7 @@ public class MaGiamGia {
 Khi nhận phân công viết một tính năng mới (ví dụ: Tạo đơn hàng `DonHang`), bạn hãy thực hiện theo đúng thứ tự 5 bước sau:
 
 ### Bước 1: Tạo Lớp Model (Entity) trong `com.linhkien.model`
-- Khai báo các thuộc tính đúng theo Class Diagram trong `DataModel_ClassDiagram_ERD.drawio`.
+- Khai báo các thuộc tính đúng theo Class Diagram trong `docs/DataModel_ClassDiagram_ERD.drawio`.
 - Viết Constructor, Getter, Setter và các hàm nghiệp vụ của riêng đối tượng đó.
 
 ### Bước 2: Tạo Lớp DAO trong `com.linhkien.dao`
@@ -353,7 +353,7 @@ Khi nhận phân công viết một tính năng mới (ví dụ: Tạo đơn hà
 ### Bước 4: Viết kịch bản kiểm thử tự động trong `src/test/java/com/linhkien/AppTest.java`
 - Thêm một phương thức `testModuleMoi()` vào `AppTest.java`.
 - Kiểm tra các trường hợp: Thành công, thất bại, dữ liệu biên.
-- Chạy `.\test.bat` để đảm bảo không làm gãy code cũ.
+- Chạy `.\scripts\test.bat` (hoặc `powershell -ExecutionPolicy Bypass -File .\scripts\test.ps1`) để đảm bảo không làm gãy code cũ.
 
 ### Bước 5: Tích hợp vào Menu giao diện Console trong `com.linhkien.ui.ConsoleApp`
 - Thêm mục menu mới vào hàm `printMainMenu()`.
@@ -393,4 +393,4 @@ Khi nhận phân công viết một tính năng mới (ví dụ: Tạo đơn hà
 
 ## Prototype UI + Java API
 
-Xem [Hướng dẫn chạy prototype](HUONG-DAN-PROTOTYPE.md). UI React nằm trong frontend/. Chạy backend bằng run-api.ps1, sau đó npm ci và npm run dev trong frontend/.
+Xem [Hướng dẫn chạy prototype](docs/HUONG-DAN-PROTOTYPE.md). UI React nằm trong frontend/. Chạy backend bằng `scripts/run-api.ps1`, sau đó `bun install` và `bun run dev` (hoặc `npm ci` và `npm run dev`) trong `frontend/`.

@@ -1,20 +1,24 @@
 package com.linhkien.service;
 
-import com.linhkien.config.DatabaseConnection;
 import com.linhkien.dao.DonHangDAO;
 import com.linhkien.dao.GioHangDAO;
 import com.linhkien.dao.LinhKienDAO;
+import com.linhkien.dao.MaGiamGiaDAO;
 import com.linhkien.dao.NguoiDungDAO;
+import com.linhkien.dao.ThanhToanDAO;
 import com.linhkien.model.ChiTietDonHang;
 import com.linhkien.model.ChiTietGioHang;
 import com.linhkien.model.DonHang;
 import com.linhkien.model.GioHang;
 import com.linhkien.model.LichSuTrangThaiDon;
 import com.linhkien.model.LinhKien;
+import com.linhkien.model.MaGiamGia;
 import com.linhkien.model.NguoiDung;
+import com.linhkien.model.ThanhToan;
 import com.linhkien.model.VanChuyen;
+import com.linhkien.util.JdbcHelper;
 
-import java.sql.Connection;
+import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -42,6 +46,9 @@ public class DonHangService {
     private final LinhKienDAO linhKienDAO;
     private final NguoiDungDAO nguoiDungDAO;
     private final GioHangService gioHangService;
+    private final MaGiamGiaDAO maGiamGiaDAO;
+    private final ThanhToanDAO thanhToanDAO;
+    private final MaGiamGiaService maGiamGiaService;
 
     public DonHangService() {
         this.donHangDAO = new DonHangDAO();
@@ -49,11 +56,21 @@ public class DonHangService {
         this.linhKienDAO = new LinhKienDAO();
         this.nguoiDungDAO = new NguoiDungDAO();
         this.gioHangService = new GioHangService(gioHangDAO, linhKienDAO);
+        this.maGiamGiaDAO = new MaGiamGiaDAO();
+        this.thanhToanDAO = new ThanhToanDAO();
+        this.maGiamGiaService = new MaGiamGiaService(maGiamGiaDAO, nguoiDungDAO);
     }
 
-    @FunctionalInterface
-    private interface HanhDongCSDL<T> {
-        T chay() throws SQLException;
+    public DonHangService(DonHangDAO donHangDAO, GioHangDAO gioHangDAO, LinhKienDAO linhKienDAO,
+                          NguoiDungDAO nguoiDungDAO, MaGiamGiaDAO maGiamGiaDAO, ThanhToanDAO thanhToanDAO) {
+        this.donHangDAO = donHangDAO;
+        this.gioHangDAO = gioHangDAO;
+        this.linhKienDAO = linhKienDAO;
+        this.nguoiDungDAO = nguoiDungDAO;
+        this.gioHangService = new GioHangService(gioHangDAO, linhKienDAO);
+        this.maGiamGiaDAO = maGiamGiaDAO;
+        this.thanhToanDAO = thanhToanDAO;
+        this.maGiamGiaService = new MaGiamGiaService(maGiamGiaDAO, nguoiDungDAO);
     }
 
     // ==========================================
@@ -64,27 +81,38 @@ public class DonHangService {
      * Tạo đơn hàng từ giỏ hàng của khách và trừ tồn kho các linh kiện (CV07.1).
      * Các bước chạy trong một Transaction:
      * 1. Kiểm tra từng dòng: linh kiện còn đang bán, lấy đơn giá hiện tại để chốt vào đơn.
-     * 2. Ghi đơn hàng ở trạng thái CHO_XAC_NHAN.
-     * 3. Với từng dòng: ghi chi tiết đơn, trừ tồn kho nguyên tử, ghi nhật ký tồn kho.
+     * 2. Áp dụng mã giảm giá (nếu có) và tính tổng thanh toán.
+     * 3. Ghi đơn hàng ở trạng thái CHO_XAC_NHAN và bản ghi ThanhToan chờ xác nhận.
+     * 4. Với từng dòng: ghi chi tiết đơn, trừ tồn kho nguyên tử, ghi nhật ký tồn kho.
      *    Nếu bất kỳ dòng nào không đủ tồn thì hoàn tác toàn bộ.
-     * 4. Ghi nhật ký trạng thái ban đầu và làm trống giỏ hàng.
+     * 5. Ghi nhật ký trạng thái ban đầu và làm trống giỏ hàng.
      *
      * @param maYeuCau Khóa chống trùng đơn (NFR05). Gửi lại cùng mã sẽ trả về đơn đã tạo thay vì tạo thêm đơn mới.
      * @return Đơn hàng đã tạo, kèm danh sách chi tiết
      */
     public DonHang taoDon(int maNguoiDung, String tenNguoiNhan, String soDienThoaiNhan, String diaChiNhan,
                           String phuongThucThanhToan, String maYeuCau, String ghiChu) {
-        return taoDon(maNguoiDung, tenNguoiNhan, soDienThoaiNhan, diaChiNhan, phuongThucThanhToan, maYeuCau, ghiChu, "legacy");
+        return taoDon(maNguoiDung, tenNguoiNhan, soDienThoaiNhan, diaChiNhan, phuongThucThanhToan, maYeuCau, ghiChu, "legacy", null);
     }
 
     public DonHang taoDon(int maNguoiDung, String tenNguoiNhan, String soDienThoaiNhan, String diaChiNhan,
                           String phuongThucThanhToan, String maYeuCau, String ghiChu, String shipping) {
-        if (!Set.of("legacy", "standard", "express").contains(shipping)) throw new IllegalArgumentException("Vận chuyển không hợp lệ");
+        return taoDon(maNguoiDung, tenNguoiNhan, soDienThoaiNhan, diaChiNhan, phuongThucThanhToan, maYeuCau, ghiChu, shipping, null);
+    }
+
+    public DonHang taoDon(int maNguoiDung, String tenNguoiNhan, String soDienThoaiNhan, String diaChiNhan,
+                          String phuongThucThanhToan, String maYeuCau, String ghiChu,
+                          String shipping, String maCodeGiamGia) {
+        String kieuVanChuyen = (shipping == null || shipping.isBlank()) ? "standard" : shipping.trim().toLowerCase();
+        if (!Set.of("legacy", "standard", "express").contains(kieuVanChuyen)) {
+            throw new IllegalArgumentException("Vận chuyển không hợp lệ");
+        }
         String ten = tenNguoiNhan == null ? "" : tenNguoiNhan.trim();
-        String sdt = soDienThoaiNhan == null ? "" : soDienThoaiNhan.trim();
+        String sdt = soDienThoaiNhan == null ? "" : soDienThoaiNhan.replaceAll("[\\s.-]", "").trim();
         String diaChi = diaChiNhan == null ? "" : diaChiNhan.trim();
         String phuongThuc = phuongThucThanhToan == null ? "" : phuongThucThanhToan.trim().toUpperCase();
         String yeuCau = maYeuCau == null ? "" : maYeuCau.trim();
+        String maCode = (maCodeGiamGia == null || maCodeGiamGia.isBlank()) ? null : maCodeGiamGia.trim().toUpperCase();
 
         if (ten.isEmpty()) {
             throw new IllegalArgumentException("Tên người nhận không được để trống");
@@ -111,7 +139,7 @@ public class DonHangService {
         }
 
         // Chống trùng đơn: cùng mã yêu cầu thì trả về đơn đã tạo
-        DonHang daCo = chay(() -> {
+        DonHang daCo = JdbcHelper.chay(() -> {
             DonHang dh = donHangDAO.findByMaYeuCau(yeuCau);
             return dh != null ? donHangDAO.findById(dh.getMaDonHang()) : null;
         });
@@ -130,7 +158,7 @@ public class DonHangService {
         List<ChiTietGioHang> dongGio = new ArrayList<>(gioHang.getDanhSachChiTiet());
         dongGio.sort(Comparator.comparingInt(ChiTietGioHang::getMaLinhKien));
 
-        int maDon = giaoDich(() -> {
+        int maDon = JdbcHelper.giaoDich(() -> {
             DonHang dh = new DonHang();
             dh.setMaNguoiDung(maNguoiDung);
             dh.setMaYeuCau(yeuCau);
@@ -155,11 +183,26 @@ public class DonHangService {
             }
             dh.setDanhSachChiTiet(dongDon);
             dh.setTongTienHang(dh.tinhTongTienHang());
-            dh.setPhiVanChuyen(java.math.BigDecimal.valueOf(shipping.equals("express") ? 49000 : shipping.equals("standard") ? 25000 : 0));
+            dh.setPhiVanChuyen(BigDecimal.valueOf(
+                kieuVanChuyen.equals("express") ? 49000 : kieuVanChuyen.equals("standard") ? 25000 : 0));
+
+            if (maCode != null) {
+                MaGiamGia mg = maGiamGiaService.kiemTraMaGiamGia(maCode, dh.getTongTienHang());
+                if (!maGiamGiaDAO.tangSoLuotDung(mg.getMaGiamGia())) {
+                    throw new IllegalStateException("Mã giảm giá '" + mg.getMaCode() + "' đã hết lượt sử dụng");
+                }
+                dh.setMaGiamGia(mg.getMaGiamGia());
+                dh.setMaCodeGiamGia(mg.getMaCode());
+                dh.setSoTienGiam(mg.tinhSoTienGiam(dh.getTongTienHang()));
+            }
             dh.setTongThanhToan(dh.tinhTongThanhToan());
 
-            // 2. Ghi đơn hàng
+            // 2. Ghi đơn hàng & giao dịch thanh toán chờ xác nhận
             donHangDAO.insert(dh);
+            if (dh.getTongThanhToan().compareTo(BigDecimal.ZERO) > 0) {
+                ThanhToan tt = new ThanhToan(dh.getMaDonHang(), ThanhToan.LOAI_THU, phuongThuc, dh.getTongThanhToan());
+                thanhToanDAO.insert(tt);
+            }
 
             // 3. Ghi chi tiết đơn và trừ tồn kho nguyên tử
             for (ChiTietDonHang ct : dongDon) {
@@ -186,7 +229,7 @@ public class DonHangService {
             return dh.getMaDonHang();
         });
 
-        return chay(() -> donHangDAO.findById(maDon));
+        return JdbcHelper.chay(() -> donHangDAO.findById(maDon));
     }
 
     // ==========================================
@@ -197,7 +240,7 @@ public class DonHangService {
      * Lịch sử đơn hàng của một khách hàng, đơn mới nhất lên đầu (UC10).
      */
     public List<DonHang> layDonCuaKhach(int maNguoiDung) {
-        return chay(() -> donHangDAO.findByNguoiDung(maNguoiDung));
+        return JdbcHelper.chay(() -> donHangDAO.findByNguoiDung(maNguoiDung));
     }
 
     /**
@@ -210,14 +253,18 @@ public class DonHangService {
         if (!loc.isEmpty() && !TRANG_THAI_DON_HOP_LE.contains(loc)) {
             throw new IllegalArgumentException("Trạng thái đơn không hợp lệ: " + trangThai);
         }
-        return chay(() -> donHangDAO.findAll(loc));
+        return JdbcHelper.chay(() -> donHangDAO.findAll(loc));
     }
 
     /**
      * Xem chi tiết một đơn hàng. Khách chỉ xem được đơn của mình, nhân viên xem được mọi đơn.
      */
     public DonHang layChiTietDon(int maDonHang, int maNguoiXem) {
-        DonHang dh = chay(() -> donHangDAO.findById(maDonHang));
+        return timDonCuaKhachHoacNhanVien(maDonHang, maNguoiXem);
+    }
+
+    public DonHang timDonCuaKhachHoacNhanVien(int maDonHang, int maNguoiXem) {
+        DonHang dh = JdbcHelper.chay(() -> donHangDAO.findById(maDonHang));
         if (dh == null) {
             throw new IllegalArgumentException("Không tìm thấy đơn hàng mã: " + maDonHang);
         }
@@ -232,11 +279,11 @@ public class DonHangService {
     }
 
     public List<LichSuTrangThaiDon> layLichSuTrangThai(int maDonHang) {
-        return chay(() -> donHangDAO.findLichSuTrangThai(maDonHang));
+        return JdbcHelper.chay(() -> donHangDAO.findLichSuTrangThai(maDonHang));
     }
 
     public VanChuyen layVanChuyen(int maDonHang) {
-        return chay(() -> donHangDAO.findVanChuyenByDon(maDonHang));
+        return JdbcHelper.chay(() -> donHangDAO.findVanChuyenByDon(maDonHang));
     }
 
     // ==========================================
@@ -265,7 +312,7 @@ public class DonHangService {
             throw new IllegalArgumentException("Chuyển sang 'Đang giao' cần nhập đơn vị vận chuyển và mã vận đơn (bàn giao vận chuyển)");
         }
 
-        giaoDich(() -> {
+        JdbcHelper.giaoDich(() -> {
             DonHang dh = layDonHoacBaoLoi(maDonHang);
             kiemTraChuyenTrangThai(dh, moi);
             String cu = dh.getTrangThaiDon();
@@ -283,15 +330,17 @@ public class DonHangService {
                     donHangDAO.capNhatKetQuaGiao(maDonHang, "DA_GIAO", LocalDateTime.now(), laCod, nhatKy);
                     if (laCod) {
                         donHangDAO.capNhatTrangThaiThanhToan(maDonHang, "DA_THANH_TOAN");
+                        capNhatGiaoDichThuThanhCong(dh, maNguoiThucHien);
                     }
                     donHangDAO.ghiLichSuTrangThai(maDonHang, cu, moi, maNguoiThucHien,
                         nhatKy != null ? nhatKy : (laCod ? "Giao thành công, đã thu tiền COD" : "Giao thành công"));
                 }
                 case DonHang.GIAO_THAT_BAI -> {
                     String lyDo = nhatKy != null ? nhatKy : "Giao hàng thất bại";
-                    hoanKho(dh, maNguoiThucHien, lyDo);
+                    hoanLaiTonVaMaGiamGia(dh, maNguoiThucHien, lyDo);
                     donHangDAO.capNhatTrangThaiDon(maDonHang, moi);
                     donHangDAO.capNhatKetQuaGiao(maDonHang, "GIAO_THAT_BAI", null, false, lyDo);
+                    xuLyThanhToanKhiHuyHoacThatBai(dh, maNguoiThucHien);
                     donHangDAO.ghiLichSuTrangThai(maDonHang, cu, moi, maNguoiThucHien, lyDo);
                 }
                 default -> throw new IllegalArgumentException("Không hỗ trợ chuyển sang trạng thái: " + moi);
@@ -315,7 +364,7 @@ public class DonHangService {
             throw new IllegalArgumentException("Mã vận đơn không được để trống");
         }
 
-        giaoDich(() -> {
+        JdbcHelper.giaoDich(() -> {
             DonHang dh = layDonHoacBaoLoi(maDonHang);
             kiemTraChuyenTrangThai(dh, DonHang.DANG_GIAO);
             if (donHangDAO.tonTaiMaVanDon(vanDon)) {
@@ -334,7 +383,7 @@ public class DonHangService {
             return null;
         });
 
-        return chay(() -> donHangDAO.findVanChuyenByDon(maDonHang));
+        return JdbcHelper.chay(() -> donHangDAO.findVanChuyenByDon(maDonHang));
     }
 
     /**
@@ -349,7 +398,7 @@ public class DonHangService {
         }
         boolean laNhanVien = nguoi.kiemTraQuyen("BAN_HANG");
 
-        giaoDich(() -> {
+        JdbcHelper.giaoDich(() -> {
             DonHang dh = layDonHoacBaoLoi(maDonHang);
             if (!laNhanVien && dh.getMaNguoiDung() != maNguoiThucHien) {
                 throw new IllegalStateException("Bạn không có quyền hủy đơn hàng của người khác");
@@ -363,11 +412,9 @@ public class DonHangService {
             String ly = lyDo == null || lyDo.isBlank()
                 ? (laNhanVien ? "Nhân viên hủy đơn" : "Khách hàng hủy đơn")
                 : lyDo.trim();
-            hoanKho(dh, maNguoiThucHien, "Hủy đơn #" + maDonHang + ": " + ly);
+            hoanLaiTonVaMaGiamGia(dh, maNguoiThucHien, "Hủy đơn #" + maDonHang + ": " + ly);
             donHangDAO.capNhatTrangThaiDon(maDonHang, DonHang.DA_HUY);
-            if ("DA_THANH_TOAN".equals(dh.getTrangThaiThanhToan())) {
-                donHangDAO.capNhatTrangThaiThanhToan(maDonHang, "DANG_HOAN_TIEN");
-            }
+            xuLyThanhToanKhiHuyHoacThatBai(dh, maNguoiThucHien);
             donHangDAO.ghiLichSuTrangThai(maDonHang, dh.getTrangThaiDon(), DonHang.DA_HUY, maNguoiThucHien, ly);
             return null;
         });
@@ -376,6 +423,47 @@ public class DonHangService {
     // ==========================================
     // HÀM NỘI BỘ
     // ==========================================
+
+    private void hoanLaiTonVaMaGiamGia(DonHang dh, int maNguoiThucHien, String lyDo) throws SQLException {
+        boolean chuaHoan = !dh.isDaHoanKho();
+        hoanKho(dh, maNguoiThucHien, lyDo);
+        if (chuaHoan && dh.getMaGiamGia() != null) {
+            maGiamGiaDAO.giamSoLuotDung(dh.getMaGiamGia());
+        }
+    }
+
+    private void capNhatGiaoDichThuThanhCong(DonHang dh, int maNguoiThucHien) throws SQLException {
+        boolean daCapNhat = false;
+        for (ThanhToan tt : thanhToanDAO.findByDonHang(dh.getMaDonHang())) {
+            if (ThanhToan.LOAI_THU.equals(tt.getLoaiGiaoDich())
+                    && ThanhToan.TRANG_THAI_CHO.equals(tt.getTrangThai())) {
+                thanhToanDAO.capNhatTrangThai(tt.getMaThanhToan(), ThanhToan.TRANG_THAI_THANH_CONG,
+                    maNguoiThucHien, "COD-" + dh.getMaDonHang());
+                daCapNhat = true;
+            }
+        }
+        if (!daCapNhat && dh.getTongThanhToan() != null && dh.getTongThanhToan().compareTo(BigDecimal.ZERO) > 0) {
+            ThanhToan tt = new ThanhToan(dh.getMaDonHang(), ThanhToan.LOAI_THU,
+                dh.getPhuongThucThanhToan(), dh.getTongThanhToan());
+            tt.setMaThamChieu("COD-" + dh.getMaDonHang());
+            tt.xacNhan(maNguoiThucHien);
+            thanhToanDAO.insert(tt);
+        }
+    }
+
+    private void xuLyThanhToanKhiHuyHoacThatBai(DonHang dh, int maNguoiThucHien) throws SQLException {
+        if ("DA_THANH_TOAN".equals(dh.getTrangThaiThanhToan())) {
+            donHangDAO.capNhatTrangThaiThanhToan(dh.getMaDonHang(), "DANG_HOAN_TIEN");
+            return;
+        }
+        for (ThanhToan tt : thanhToanDAO.findByDonHang(dh.getMaDonHang())) {
+            if (ThanhToan.LOAI_THU.equals(tt.getLoaiGiaoDich())
+                    && ThanhToan.TRANG_THAI_CHO.equals(tt.getTrangThai())) {
+                thanhToanDAO.capNhatTrangThai(tt.getMaThanhToan(), ThanhToan.TRANG_THAI_THAT_BAI,
+                    maNguoiThucHien, tt.getMaThamChieu());
+            }
+        }
+    }
 
     /**
      * Cộng lại tồn kho cho các dòng của đơn, chỉ thực hiện một lần nhờ cờ DaHoanKho.
@@ -420,50 +508,4 @@ public class DonHangService {
         }
     }
 
-    /**
-     * Chạy một thao tác đọc CSDL, chuyển SQLException thành RuntimeException.
-     */
-    private <T> T chay(HanhDongCSDL<T> hanhDong) {
-        try {
-            return hanhDong.chay();
-        } catch (SQLException e) {
-            throw new RuntimeException("Lỗi CSDL: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Chạy một thao tác trong Transaction: thành công thì commit, có lỗi thì rollback toàn bộ.
-     */
-    private <T> T giaoDich(HanhDongCSDL<T> hanhDong) {
-        Connection conn;
-        try {
-            conn = DatabaseConnection.getConnection();
-        } catch (SQLException e) {
-            throw new RuntimeException("Không thể kết nối CSDL: " + e.getMessage(), e);
-        }
-
-        boolean autoCommitCu = true;
-        try {
-            autoCommitCu = conn.getAutoCommit();
-            conn.setAutoCommit(false);
-            T ketQua = hanhDong.chay();
-            conn.commit();
-            return ketQua;
-        } catch (RuntimeException | SQLException e) {
-            try {
-                conn.rollback();
-            } catch (SQLException rollbackEx) {
-                System.err.println("[LỖI] Hoàn tác giao dịch thất bại: " + rollbackEx.getMessage());
-            }
-            if (e instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new RuntimeException("Lỗi CSDL: " + e.getMessage(), e);
-        } finally {
-            try {
-                conn.setAutoCommit(autoCommitCu);
-            } catch (SQLException ignored) {
-            }
-        }
-    }
 }

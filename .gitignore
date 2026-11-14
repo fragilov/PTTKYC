@@ -5,9 +5,13 @@ target/
 
 # Temporary or database files
 ql_banlinhkien.db
+database/*.db
 *.db-journal
+database/*.db-journal
 *.db-wal
+database/*.db-wal
 *.db-shm
+database/*.db-shm
 
 # IDE & Editor files
 .idea/

@@ -36,7 +36,7 @@ public class DatabaseConfig {
         }
 
         dbType = properties.getProperty("db.type", "sqlite").trim().toLowerCase();
-        sqliteUrl = properties.getProperty("sqlite.url", "jdbc:sqlite:ql_banlinhkien.db").trim();
+        sqliteUrl = properties.getProperty("sqlite.url", "jdbc:sqlite:database/ql_banlinhkien.db").trim();
 
         sqlServerHost = properties.getProperty("sqlserver.host", "localhost").trim();
         sqlServerPort = Integer.parseInt(properties.getProperty("sqlserver.port", "1433").trim());

@@ -1,5 +1,6 @@
 package com.linhkien.config;
 
+import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -49,6 +50,7 @@ public class DatabaseConnection {
         try {
             Class.forName("org.sqlite.JDBC");
             String url = DatabaseConfig.getSqliteUrl();
+            ensureSqliteParentDir(url);
             connection = DriverManager.getConnection(url);
             activeDbType = "sqlite";
             System.out.println("[CSDL] Kết nối thành công đến SQLite: " + url);
@@ -69,6 +71,27 @@ public class DatabaseConnection {
             }
         }
         return activeDbType != null ? activeDbType : DatabaseConfig.getDbType();
+    }
+
+    /**
+     * Tự động tạo thư mục cha cho file SQLite (ví dụ `database/`) nếu chưa tồn tại.
+     */
+    private static void ensureSqliteParentDir(String url) {
+        if (url == null || !url.startsWith("jdbc:sqlite:")) {
+            return;
+        }
+        String path = url.substring("jdbc:sqlite:".length());
+        int queryIdx = path.indexOf('?');
+        if (queryIdx >= 0) {
+            path = path.substring(0, queryIdx);
+        }
+        if (path.isEmpty() || ":memory:".equalsIgnoreCase(path) || path.startsWith("file:")) {
+            return;
+        }
+        File parent = new File(path).getParentFile();
+        if (parent != null && !parent.exists()) {
+            parent.mkdirs();
+        }
     }
 
     /**

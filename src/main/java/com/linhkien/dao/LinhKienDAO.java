@@ -1,7 +1,10 @@
 package com.linhkien.dao;
 
 import com.linhkien.config.DatabaseConnection;
+import com.linhkien.model.LichSuTonKho;
 import com.linhkien.model.LinhKien;
+import com.linhkien.model.ThongSoKyThuat;
+import com.linhkien.util.JdbcHelper;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -93,20 +96,25 @@ public class LinhKienDAO {
             WHERE lk.MaLinhKien = ?
         """;
 
+        LinhKien lk = null;
         try {
             Connection conn = DatabaseConnection.getConnection();
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setInt(1, maLinhKien);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
-                        return mapResultSetToLinhKien(rs);
+                        lk = mapResultSetToLinhKien(rs);
                     }
                 }
             }
         } catch (SQLException e) {
             System.err.println("[DAO LỖI] Tìm linh kiện theo ID thất bại: " + e.getMessage());
+            return null;
         }
-        return null;
+        if (lk != null) {
+            lk.setDanhSachThongSo(findThongSoByLinhKien(maLinhKien));
+        }
+        return lk;
     }
 
     /**
@@ -358,6 +366,138 @@ public class LinhKienDAO {
             System.err.println("[DAO LỖI] Cập nhật tồn kho thất bại: " + e.getMessage());
         }
         return false;
+    }
+
+    /**
+     * Cộng hoặc trừ tồn kho nguyên tử (đảm bảo không âm).
+     */
+    public boolean tangSoLuongTon(int maLinhKien, int delta) throws SQLException {
+        String sql = "UPDATE LinhKien SET SoLuongTon = SoLuongTon + ?, NgayCapNhat = ? "
+            + "WHERE MaLinhKien = ? AND SoLuongTon + ? >= 0";
+        Connection conn = DatabaseConnection.getConnection();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, delta);
+            JdbcHelper.setThoiGian(ps, 2, LocalDateTime.now());
+            ps.setInt(3, maLinhKien);
+            ps.setInt(4, delta);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    /**
+     * Lấy danh sách thông số kỹ thuật mở rộng của linh kiện.
+     */
+    public List<ThongSoKyThuat> findThongSoByLinhKien(int maLinhKien) {
+        List<ThongSoKyThuat> list = new ArrayList<>();
+        String sql = """
+            SELECT MaThongSo, MaLinhKien, TenThongSo, GiaTri, DonVi
+            FROM ThongSoKyThuat
+            WHERE MaLinhKien = ?
+            ORDER BY MaThongSo ASC
+        """;
+        try {
+            Connection conn = DatabaseConnection.getConnection();
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setInt(1, maLinhKien);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        ThongSoKyThuat ts = new ThongSoKyThuat();
+                        ts.setMaThongSo(rs.getInt("MaThongSo"));
+                        ts.setMaLinhKien(rs.getInt("MaLinhKien"));
+                        ts.setTenThongSo(rs.getString("TenThongSo"));
+                        ts.setGiaTri(rs.getString("GiaTri"));
+                        ts.setDonVi(rs.getString("DonVi"));
+                        list.add(ts);
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[DAO LỖI] Lấy thông số kỹ thuật thất bại: " + e.getMessage());
+        }
+        return list;
+    }
+
+    /**
+     * Thay thế toàn bộ thông số kỹ thuật mở rộng của một linh kiện.
+     */
+    public void replaceThongSo(int maLinhKien, List<ThongSoKyThuat> danhSach) throws SQLException {
+        Connection conn = DatabaseConnection.getConnection();
+        try (PreparedStatement del = conn.prepareStatement("DELETE FROM ThongSoKyThuat WHERE MaLinhKien = ?")) {
+            del.setInt(1, maLinhKien);
+            del.executeUpdate();
+        }
+        if (danhSach == null || danhSach.isEmpty()) {
+            return;
+        }
+        String insertSql = "INSERT INTO ThongSoKyThuat (MaLinhKien, TenThongSo, GiaTri, DonVi) VALUES (?, ?, ?, ?)";
+        try (PreparedStatement ins = conn.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS)) {
+            for (ThongSoKyThuat ts : danhSach) {
+                if (ts == null || ts.getTenThongSo() == null || ts.getTenThongSo().isBlank()
+                        || ts.getGiaTri() == null || ts.getGiaTri().isBlank()) {
+                    continue;
+                }
+                ts.setMaLinhKien(maLinhKien);
+                ins.setInt(1, maLinhKien);
+                ins.setString(2, ts.getTenThongSo().trim());
+                ins.setString(3, ts.getGiaTri().trim());
+                ins.setString(4, ts.getDonVi() != null && !ts.getDonVi().isBlank() ? ts.getDonVi().trim() : null);
+                ins.executeUpdate();
+                try (ResultSet keys = ins.getGeneratedKeys()) {
+                    if (keys.next()) {
+                        ts.setMaThongSo(keys.getInt(1));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Truy vấn lịch sử biến động tồn kho (NFR03), sắp xếp mới nhất trước.
+     */
+    public List<LichSuTonKho> findLichSuTonKho(Integer maLinhKien) throws SQLException {
+        StringBuilder sql = new StringBuilder("""
+            SELECT ls.MaLichSu, ls.MaLinhKien, lk.TenLinhKien, lk.MaSKU,
+                   ls.LoaiBienDong, ls.SoLuongThayDoi, ls.TonTruoc, ls.TonSau,
+                   ls.MaDonHang, ls.MaNguoiThucHien, nd.HoTen AS TenNguoiThucHien,
+                   ls.LyDo, ls.ThoiDiem
+            FROM LichSuTonKho ls
+            JOIN LinhKien lk ON ls.MaLinhKien = lk.MaLinhKien
+            LEFT JOIN NguoiDung nd ON ls.MaNguoiThucHien = nd.MaNguoiDung
+        """);
+        if (maLinhKien != null) {
+            sql.append(" WHERE ls.MaLinhKien = ?");
+        }
+        sql.append(" ORDER BY ls.MaLichSu DESC");
+
+        List<LichSuTonKho> list = new ArrayList<>();
+        Connection conn = DatabaseConnection.getConnection();
+        try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            if (maLinhKien != null) {
+                ps.setInt(1, maLinhKien);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    LichSuTonKho item = new LichSuTonKho();
+                    item.setMaLichSu(rs.getLong("MaLichSu"));
+                    item.setMaLinhKien(rs.getInt("MaLinhKien"));
+                    item.setTenLinhKien(rs.getString("TenLinhKien"));
+                    item.setMaSKU(rs.getString("MaSKU"));
+                    item.setLoaiBienDong(rs.getString("LoaiBienDong"));
+                    item.setSoLuongThayDoi(rs.getInt("SoLuongThayDoi"));
+                    item.setTonTruoc(rs.getInt("TonTruoc"));
+                    item.setTonSau(rs.getInt("TonSau"));
+                    int maDon = rs.getInt("MaDonHang");
+                    item.setMaDonHang(rs.wasNull() ? null : maDon);
+                    int nguoi = rs.getInt("MaNguoiThucHien");
+                    item.setMaNguoiThucHien(rs.wasNull() ? null : nguoi);
+                    item.setTenNguoiThucHien(rs.getString("TenNguoiThucHien"));
+                    item.setLyDo(rs.getString("LyDo"));
+                    item.setThoiDiem(JdbcHelper.docThoiGian(rs, "ThoiDiem"));
+                    list.add(item);
+                }
+            }
+        }
+        return list;
     }
 
     /**

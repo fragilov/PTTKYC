@@ -559,5 +559,52 @@ td { height: 55px; border-top: 1px solid #eaecf0; padding: 0 15px; font-size: 8p
 .bank-transfer dd { margin: 0; font-weight: 600; }
 .bank-transfer p { color: #475569; line-height: 1.6; }
 
-.tracking-page .timeline-card .event { display: block; padding: 12px 0; }
+.tracking-page .timeline-card .event { padding: 4px 0 12px; }
 .tracking-page .quick-links .btn { color: #334155; background: #fff; border: 1px solid #dbe3ef; }
+.tracking-page .quick-links .btn-primary { color: #fff; background: #1358d3; border-color: #1358d3; }
+.tracking-order-pills { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Minimal additive helpers for refactored features */
+.product-grid.list-view { grid-template-columns: 1fr; }
+.product-grid.list-view .product-card { flex-direction: row; align-items: stretch; height: auto; }
+.product-grid.list-view .card-visual-button { width: 190px; min-width: 190px; height: auto; border-bottom: 0; border-right: 1px solid #eef0f3; }
+.product-grid.list-view .product-title { min-height: auto; }
+
+.heart-active { color: #e11d48 !important; border-color: #fda4af !important; }
+.heart-active svg { fill: #e11d48; stroke: #e11d48; }
+
+.inline-error { margin-top: 10px; padding: 9px 12px; border-radius: 7px; border: 1px solid #fecdca; background: #fef3f2; color: #b42318; font-size: 11px; }
+.coupon-applied { margin-top: 10px; padding: 8px 11px; border-radius: 7px; border: 1px solid #b7dfc9; background: #f0faf5; color: #16845b; font-size: 11px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.coupon-applied button { color: #b42318; font-weight: 600; font-size: 10px; }
+
+.gallery-spec-slide { flex-direction: column; gap: 12px; padding: 24px; text-align: center; background: #f8f9fb; }
+.gallery-spec-slide strong { font-size: 16px; color: #101828; }
+.gallery-spec-slide p { font-size: 12px; color: #667085; }
+
+.inline-panel { margin-top: 14px; padding: 16px; border: 1px solid #dbe3ef; border-radius: 8px; background: #f8faff; }
+.inline-panel h3 { font-size: 13px; font-weight: 700; color: #101828; }
+.inline-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.inline-actions .btn { min-height: 32px; padding: 0 11px; font-size: 11px; }
+
+.inventory-grid > .inventory-item-row { grid-template-columns: 55px 1fr 100px 120px auto; }
+
+.badge { display: inline-flex; align-items: center; padding: 2px 7px; margin-left: 6px; border-radius: 99px; font-size: 10px; font-weight: 600; }
+.badge-success { background: #eaf8f1; color: #16845b; }
+.badge-danger { background: #fef3f2; color: #b42318; }
+.badge-info { background: #edf3ff; color: #1358d3; }
+
+.address-book-list { display: flex; flex-direction: column; gap: 10px; }
+.address-book-item { padding: 12px 14px; border: 1px solid #e4e7ec; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.address-book-item.default { border-color: #1358d3; background: #f8faff; }
+.address-book-item > div:first-child { display: flex; flex-direction: column; gap: 4px; }
+.address-book-item strong { font-size: 12px; color: #101828; }
+.address-book-item small { font-size: 11px; color: #667085; }
+
+.danger-outline-btn { margin-top: 16px; width: 100%; color: #b42318 !important; border-color: #fecdca !important; }
+.status-đã-hủy, .status-giao-thất-bại { color: #b42318; background: #fef3f2; }
+
+@media (max-width: 760px) {
+  .product-grid.list-view .product-card { flex-direction: column; }
+  .product-grid.list-view .card-visual-button { width: 100%; height: 150px; border-right: 0; border-bottom: 1px solid #eef0f3; }
+  .inventory-grid > .inventory-item-row { grid-template-columns: 48px 1fr; }
+}

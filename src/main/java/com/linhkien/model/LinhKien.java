@@ -2,6 +2,8 @@ package com.linhkien.model;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Lớp đại diện cho Linh kiện điện tử theo Class Diagram và bảng LinhKien trong CSDL.
@@ -25,6 +27,7 @@ public class LinhKien {
     private int nguongTonToiThieu;
     private String trangThaiBan; // 'DANG_BAN', 'NGUNG_BAN'
     private LocalDateTime ngayCapNhat;
+    private List<ThongSoKyThuat> danhSachThongSo = new ArrayList<>();
 
     public LinhKien() {
         this.donViTinh = "Cái";
@@ -272,6 +275,14 @@ public class LinhKien {
 
     public void setNgayCapNhat(LocalDateTime ngayCapNhat) {
         this.ngayCapNhat = ngayCapNhat;
+    }
+
+    public List<ThongSoKyThuat> getDanhSachThongSo() {
+        return danhSachThongSo;
+    }
+
+    public void setDanhSachThongSo(List<ThongSoKyThuat> danhSachThongSo) {
+        this.danhSachThongSo = danhSachThongSo != null ? danhSachThongSo : new ArrayList<>();
     }
 
     @Override

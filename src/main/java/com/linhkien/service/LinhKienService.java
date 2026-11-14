@@ -1,9 +1,13 @@
 package com.linhkien.service;
 
 import com.linhkien.dao.DanhMucDAO;
+import com.linhkien.dao.DonHangDAO;
 import com.linhkien.dao.LinhKienDAO;
 import com.linhkien.model.DanhMucLinhKien;
+import com.linhkien.model.LichSuTonKho;
 import com.linhkien.model.LinhKien;
+import com.linhkien.model.ThongSoKyThuat;
+import com.linhkien.util.JdbcHelper;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -14,15 +18,24 @@ import java.util.List;
 public class LinhKienService {
     private final LinhKienDAO linhKienDAO;
     private final DanhMucDAO danhMucDAO;
+    private final DonHangDAO donHangDAO;
 
     public LinhKienService() {
         this.linhKienDAO = new LinhKienDAO();
         this.danhMucDAO = new DanhMucDAO();
+        this.donHangDAO = new DonHangDAO();
     }
 
     public LinhKienService(LinhKienDAO linhKienDAO, DanhMucDAO danhMucDAO) {
         this.linhKienDAO = linhKienDAO;
         this.danhMucDAO = danhMucDAO;
+        this.donHangDAO = new DonHangDAO();
+    }
+
+    public LinhKienService(LinhKienDAO linhKienDAO, DanhMucDAO danhMucDAO, DonHangDAO donHangDAO) {
+        this.linhKienDAO = linhKienDAO;
+        this.danhMucDAO = danhMucDAO;
+        this.donHangDAO = donHangDAO;
     }
 
     /**
@@ -151,19 +164,67 @@ public class LinhKienService {
     }
 
     /**
-     * Điều chỉnh tồn kho linh kiện (UC13 - Kiểm kê/Nhập hàng).
+     * Điều chỉnh tồn kho linh kiện (UC13 - Kiểm kê/Nhập hàng) và ghi nhận nhật ký biến động.
      */
     public void dieuChinhTonKho(int maLinhKien, int mucDieuChinh, String lyDo) {
+        dieuChinhTonKho(maLinhKien, mucDieuChinh, lyDo, null);
+    }
+
+    public void dieuChinhTonKho(int maLinhKien, int mucDieuChinh, String lyDo, Integer maNguoiThucHien) {
+        if (mucDieuChinh == 0) {
+            throw new IllegalArgumentException("Mức điều chỉnh tồn kho phải khác 0");
+        }
+        JdbcHelper.giaoDich(() -> {
+            LinhKien lk = linhKienDAO.findById(maLinhKien);
+            if (lk == null) {
+                throw new IllegalArgumentException("Không tìm thấy linh kiện có mã: " + maLinhKien);
+            }
+            int tonTruoc = lk.getSoLuongTon();
+            lk.dieuChinhTon(mucDieuChinh, lyDo);
+            int tonSau = lk.getSoLuongTon();
+
+            boolean ok = linhKienDAO.updateSoLuongTon(maLinhKien, tonSau);
+            if (!ok) {
+                throw new RuntimeException("Cập nhật số lượng tồn kho trong CSDL thất bại");
+            }
+            String loai = mucDieuChinh > 0 ? LichSuTonKho.NHAP : LichSuTonKho.DIEU_CHINH;
+            String ghiChu = (lyDo != null && !lyDo.isBlank())
+                ? lyDo.trim()
+                : (mucDieuChinh > 0 ? "Nhập bổ sung tồn kho" : "Điều chỉnh giảm tồn kho");
+            donHangDAO.ghiLichSuTonKho(maLinhKien, loai, mucDieuChinh, tonTruoc, tonSau, null, maNguoiThucHien, ghiChu);
+            return null;
+        });
+    }
+
+    /**
+     * Lấy nhật ký biến động tồn kho (NFR03). Truyền null để lấy toàn bộ.
+     */
+    public List<LichSuTonKho> layLichSuTonKho(Integer maLinhKien) {
+        return JdbcHelper.chay(() -> linhKienDAO.findLichSuTonKho(maLinhKien));
+    }
+
+    /**
+     * Lấy danh sách thông số kỹ thuật mở rộng của linh kiện.
+     */
+    public List<ThongSoKyThuat> layThongSoKyThuat(int maLinhKien) {
+        if (maLinhKien <= 0) {
+            throw new IllegalArgumentException("Mã linh kiện phải là số nguyên dương");
+        }
+        return linhKienDAO.findThongSoByLinhKien(maLinhKien);
+    }
+
+    /**
+     * Cập nhật toàn bộ danh sách thông số kỹ thuật mở rộng cho linh kiện.
+     */
+    public List<ThongSoKyThuat> capNhatThongSoKyThuat(int maLinhKien, List<ThongSoKyThuat> danhSach) {
         LinhKien lk = linhKienDAO.findById(maLinhKien);
         if (lk == null) {
             throw new IllegalArgumentException("Không tìm thấy linh kiện có mã: " + maLinhKien);
         }
-
-        lk.dieuChinhTon(mucDieuChinh, lyDo);
-        boolean ok = linhKienDAO.updateSoLuongTon(maLinhKien, lk.getSoLuongTon());
-        if (!ok) {
-            throw new RuntimeException("Cập nhật số lượng tồn kho trong CSDL thất bại");
-        }
+        return JdbcHelper.giaoDich(() -> {
+            linhKienDAO.replaceThongSo(maLinhKien, danhSach);
+            return linhKienDAO.findThongSoByLinhKien(maLinhKien);
+        });
     }
 
     /**

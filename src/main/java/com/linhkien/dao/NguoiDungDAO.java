@@ -41,4 +41,32 @@ public class NguoiDungDAO {
         }
         return null;
     }
+
+    public String findMatKhauHashById(int maNguoiDung) {
+        String sql = "SELECT MatKhauHash FROM NguoiDung WHERE MaNguoiDung = ?";
+        try {
+            Connection conn = DatabaseConnection.getConnection();
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setInt(1, maNguoiDung);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getString("MatKhauHash");
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[DAO LỖI] Đọc mật khẩu người dùng thất bại: " + e.getMessage());
+        }
+        return null;
+    }
+
+    public boolean updateMatKhauHash(int maNguoiDung, String matKhauHashMoi) throws SQLException {
+        String sql = "UPDATE NguoiDung SET MatKhauHash = ? WHERE MaNguoiDung = ?";
+        Connection conn = DatabaseConnection.getConnection();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, matKhauHashMoi);
+            ps.setInt(2, maNguoiDung);
+            return ps.executeUpdate() > 0;
+        }
+    }
 }

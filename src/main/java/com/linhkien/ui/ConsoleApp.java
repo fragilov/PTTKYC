@@ -8,13 +8,18 @@ import com.linhkien.model.ChiTietGioHang;
 import com.linhkien.model.DanhMucLinhKien;
 import com.linhkien.model.DonHang;
 import com.linhkien.model.GioHang;
+import com.linhkien.model.LichSuTonKho;
 import com.linhkien.model.LichSuTrangThaiDon;
 import com.linhkien.model.LinhKien;
+import com.linhkien.model.MaGiamGia;
 import com.linhkien.model.NguoiDung;
+import com.linhkien.model.ThanhToan;
 import com.linhkien.model.VanChuyen;
 import com.linhkien.service.DonHangService;
 import com.linhkien.service.GioHangService;
 import com.linhkien.service.LinhKienService;
+import com.linhkien.service.MaGiamGiaService;
+import com.linhkien.service.ThanhToanService;
 
 import java.math.BigDecimal;
 import java.text.NumberFormat;
@@ -37,6 +42,8 @@ public class ConsoleApp {
     private final LinhKienService linhKienService;
     private final GioHangService gioHangService;
     private final DonHangService donHangService;
+    private final MaGiamGiaService maGiamGiaService;
+    private final ThanhToanService thanhToanService;
     private final NguoiDungDAO nguoiDungDAO;
     private final DanhMucDAO danhMucDAO;
     private final Scanner scanner;
@@ -48,12 +55,17 @@ public class ConsoleApp {
     // Tài khoản nhân viên bán hàng mẫu ID = 2 (Trần Thị Bích), trùng với dữ liệu mẫu của SQL Server
     private static final int STAFF_USER_ID = 2;
 
+    // Tài khoản nhân viên kho mẫu ID = 3 (Lê Hoàng Long)
+    private static final int WAREHOUSE_USER_ID = 3;
+
     private static final DateTimeFormatter DINH_DANG_GIO = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     public ConsoleApp() {
         this.linhKienService = new LinhKienService();
         this.gioHangService = new GioHangService();
         this.donHangService = new DonHangService();
+        this.maGiamGiaService = new MaGiamGiaService();
+        this.thanhToanService = new ThanhToanService();
         this.nguoiDungDAO = new NguoiDungDAO();
         this.danhMucDAO = new DanhMucDAO();
         this.scanner = new Scanner(System.in);
@@ -64,7 +76,7 @@ public class ConsoleApp {
         boolean running = true;
         while (running) {
             printMainMenu();
-            System.out.print(">> Vui lòng chọn chức năng [0-18]: ");
+            System.out.print(">> Vui lòng chọn chức năng [0-25]: ");
             if (!scanner.hasNextLine()) {
                 break;
             }
@@ -89,12 +101,19 @@ public class ConsoleApp {
                 case "16" -> xemTatCaDonHang();
                 case "17" -> xemChiTietDonNhanVien();
                 case "18" -> capNhatTrangThaiDon();
+                case "19" -> dieuChinhTonKhoConsole();
+                case "20" -> xemLichSuTonKhoConsole();
+                case "21" -> xemDanhSachMaGiamGia();
+                case "22" -> themMaGiamGiaMoi();
+                case "23" -> xacNhanThanhToanConsole();
+                case "24" -> xacNhanHoanTienConsole();
+                case "25" -> xemLichSuGiaoDichThanhToan();
                 case "0" -> {
                     System.out.println("\n[THOÁT] Cảm ơn bạn đã sử dụng hệ thống Quản lý linh kiện điện tử!");
                     DatabaseConnection.closeConnection();
                     running = false;
                 }
-                default -> System.out.println("❌ Lựa chọn không hợp lệ, vui lòng chọn từ 0 đến 18.\n");
+                default -> System.out.println("❌ Lựa chọn không hợp lệ, vui lòng chọn từ 0 đến 25.\n");
             }
         }
     }
@@ -129,6 +148,15 @@ public class ConsoleApp {
         System.out.println("  16. Danh sách đơn hàng (lọc theo trạng thái)");
         System.out.println("  17. Xem chi tiết đơn hàng bất kỳ");
         System.out.println("  18. Cập nhật trạng thái đơn / vận chuyển");
+        System.out.println(" ------------------------------------------------------------------------");
+        System.out.println(" [ KHO - MÃ GIẢM GIÁ - THANH TOÁN (NV KHO / BÁN HÀNG) ]");
+        System.out.println("  19. Điều chỉnh tồn kho (Nhập thêm / Kiểm kê)");
+        System.out.println("  20. Xem lịch sử biến động tồn kho");
+        System.out.println("  21. Xem danh sách mã giảm giá");
+        System.out.println("  22. Tạo mã giảm giá mới");
+        System.out.println("  23. Xác nhận thanh toán đơn hàng");
+        System.out.println("  24. Xác nhận hoàn tiền đơn đã hủy / thất bại");
+        System.out.println("  25. Xem lịch sử giao dịch thanh toán");
         System.out.println(" ------------------------------------------------------------------------");
         System.out.println("   0. Thoát chương trình");
         System.out.println("=========================================================================");
@@ -561,6 +589,9 @@ public class ConsoleApp {
             String pt = scanner.nextLine().trim();
             String phuongThuc = "2".equals(pt) ? "CHUYEN_KHOAN" : "COD";
 
+            System.out.print("Mã giảm giá (có thể bỏ trống): ");
+            String maGiamGia = scanner.nextLine().trim();
+
             System.out.print("Ghi chú cho đơn hàng (có thể bỏ trống): ");
             String ghiChu = scanner.nextLine().trim();
 
@@ -573,7 +604,7 @@ public class ConsoleApp {
 
             // Mỗi lần xác nhận sinh một mã yêu cầu riêng để chống tạo trùng đơn (NFR05)
             String maYeuCau = UUID.randomUUID().toString();
-            DonHang dh = donHangService.taoDon(DEFAULT_USER_ID, ten, sdt, diaChi, phuongThuc, maYeuCau, ghiChu);
+            DonHang dh = donHangService.taoDon(DEFAULT_USER_ID, ten, sdt, diaChi, phuongThuc, maYeuCau, ghiChu, "standard", maGiamGia);
 
             System.out.println("🎉 Đặt hàng thành công! Tồn kho đã được trừ và giỏ hàng đã được làm trống.");
             inChiTietDon(dh);
@@ -866,6 +897,154 @@ public class ConsoleApp {
         }
         System.out.println("---------------------------------------------------------------------------------------------------------------------");
         System.out.println("Tổng số linh kiện: " + list.size());
+    }
+
+    // ==========================================
+    // 19-25. KHO, MÃ GIẢM GIÁ VÀ THANH TOÁN
+    // ==========================================
+    private void dieuChinhTonKhoConsole() {
+        System.out.println("\n--- ĐIỀU CHỈNH TỒN KHO (NHẬP / KIỂM KÊ) ---");
+        try {
+            System.out.print("Nhập mã linh kiện (ID): ");
+            int id = Integer.parseInt(scanner.nextLine().trim());
+            System.out.print("Số lượng thay đổi (+ nhập thêm, - giảm khi kiểm kê): ");
+            int delta = Integer.parseInt(scanner.nextLine().trim());
+            System.out.print("Lý do điều chỉnh: ");
+            String lyDo = scanner.nextLine().trim();
+            linhKienService.dieuChinhTonKho(id, delta, lyDo, WAREHOUSE_USER_ID);
+            LinhKien lk = linhKienService.timTheoMa(id);
+            System.out.printf("✅ Đã cập nhật tồn kho '%s': còn %d %s.\n",
+                lk.getTenLinhKien(), lk.getSoLuongTon(), lk.getDonViTinh());
+        } catch (NumberFormatException e) {
+            System.out.println("❌ Mã linh kiện và số lượng phải là số nguyên!");
+        } catch (Exception e) {
+            System.out.println("❌ Điều chỉnh thất bại: " + e.getMessage());
+        }
+    }
+
+    private void xemLichSuTonKhoConsole() {
+        System.out.println("\n--- LỊCH SỬ BIẾN ĐỘNG TỒN KHO ---");
+        System.out.print("Lọc theo mã linh kiện (Enter = xem tất cả): ");
+        String raw = scanner.nextLine().trim();
+        Integer maLk = null;
+        if (!raw.isEmpty()) {
+            try {
+                maLk = Integer.parseInt(raw);
+            } catch (NumberFormatException e) {
+                System.out.println("❌ Mã linh kiện không hợp lệ!");
+                return;
+            }
+        }
+        List<LichSuTonKho> list = linhKienService.layLichSuTonKho(maLk);
+        if (list.isEmpty()) {
+            System.out.println("📭 Chưa có biến động tồn kho nào.");
+            return;
+        }
+        System.out.println("----------------------------------------------------------------------------------------------------");
+        System.out.printf("%-5s | %-12s | %-24s | %-10s | %-7s | %-5s -> %-5s | %-20s\n",
+            "ID", "SKU", "Tên linh kiện", "Loại", "Đổi", "Trước", "Sau", "Lý do");
+        System.out.println("----------------------------------------------------------------------------------------------------");
+        for (LichSuTonKho item : list) {
+            System.out.printf("%-5d | %-12s | %-24s | %-10s | %+7d | %5d -> %-5d | %-20s\n",
+                item.getMaLichSu(), item.getMaSKU(), rutGon(item.getTenLinhKien(), 24),
+                item.getLoaiBienDong(), item.getSoLuongThayDoi(), item.getTonTruoc(), item.getTonSau(),
+                rutGon(item.getLyDo() != null ? item.getLyDo() : "-", 20));
+        }
+    }
+
+    private void xemDanhSachMaGiamGia() {
+        System.out.println("\n--- DANH SÁCH MÃ GIẢM GIÁ ---");
+        List<MaGiamGia> list = maGiamGiaService.layTatCa();
+        if (list.isEmpty()) {
+            System.out.println("📭 Chưa có mã giảm giá nào.");
+            return;
+        }
+        System.out.println("--------------------------------------------------------------------------------------------");
+        System.out.printf("%-4s | %-12s | %-10s | %-12s | %-12s | %-10s | %-16s\n",
+            "ID", "Mã Code", "Loại", "Giá trị", "Đơn tối thiểu", "Đã dùng", "Hạn dùng");
+        System.out.println("--------------------------------------------------------------------------------------------");
+        for (MaGiamGia mg : list) {
+            String luot = mg.getSoLuotDaDung() + "/" + (mg.getSoLuotToiDa() != null ? mg.getSoLuotToiDa() : "∞");
+            System.out.printf("%-4d | %-12s | %-10s | %12s | %12s | %-10s | %-16s\n",
+                mg.getMaGiamGia(), mg.getMaCode(), mg.getLoaiGiam(),
+                MaGiamGia.PHAN_TRAM.equals(mg.getLoaiGiam()) ? mg.getGiaTriGiam() + "%" : formatTien(mg.getGiaTriGiam()),
+                formatTien(mg.getDonHangToiThieu()), luot, formatGio(mg.getNgayKetThuc()));
+        }
+    }
+
+    private void themMaGiamGiaMoi() {
+        System.out.println("\n--- TẠO MÃ GIẢM GIÁ MỚI ---");
+        try {
+            System.out.print("Mã code (VD: TECH15): ");
+            String code = scanner.nextLine().trim().toUpperCase();
+            System.out.print("Loại giảm (1. PHAN_TRAM  2. SO_TIEN) [1/2]: ");
+            String loai = "1".equals(scanner.nextLine().trim()) ? MaGiamGia.PHAN_TRAM : MaGiamGia.SO_TIEN;
+            System.out.print("Giá trị giảm: ");
+            BigDecimal giaTri = new BigDecimal(scanner.nextLine().trim());
+            System.out.print("Đơn tối thiểu (VNĐ, Enter = 0): ");
+            String minStr = scanner.nextLine().trim();
+            BigDecimal min = minStr.isEmpty() ? BigDecimal.ZERO : new BigDecimal(minStr);
+            System.out.print("Số lượt tối đa (Enter = không giới hạn): ");
+            String maxStr = scanner.nextLine().trim();
+            Integer max = maxStr.isEmpty() ? null : Integer.parseInt(maxStr);
+            System.out.print("Số ngày hiệu lực [mặc định 30]: ");
+            String daysStr = scanner.nextLine().trim();
+            int days = daysStr.isEmpty() ? 30 : Integer.parseInt(daysStr);
+
+            MaGiamGia mg = new MaGiamGia(code, loai, giaTri, min, max, LocalDateTime.now(), LocalDateTime.now().plusDays(days));
+            MaGiamGia saved = maGiamGiaService.themMaGiamGia(mg, STAFF_USER_ID);
+            System.out.println("✅ Đã tạo mã giảm giá '" + saved.getMaCode() + "' (ID: " + saved.getMaGiamGia() + ").");
+        } catch (Exception e) {
+            System.out.println("❌ Tạo mã giảm giá thất bại: " + e.getMessage());
+        }
+    }
+
+    private void xacNhanThanhToanConsole() {
+        System.out.println("\n--- XÁC NHẬN THANH TOÁN ĐƠN HÀNG ---");
+        try {
+            System.out.print("Nhập mã đơn hàng: ");
+            int maDon = Integer.parseInt(scanner.nextLine().trim());
+            System.out.print("Mã tham chiếu / mã giao dịch ngân hàng (có thể bỏ trống): ");
+            String ref = scanner.nextLine().trim();
+            ThanhToan tt = thanhToanService.xacNhanThanhToan(maDon, ref, STAFF_USER_ID);
+            System.out.printf("✅ Đã xác nhận thanh toán đơn #%d (%s VNĐ, Mã GD #%d).\n",
+                maDon, formatTien(tt.getSoTien()), tt.getMaThanhToan());
+        } catch (Exception e) {
+            System.out.println("❌ Xác nhận thanh toán thất bại: " + e.getMessage());
+        }
+    }
+
+    private void xacNhanHoanTienConsole() {
+        System.out.println("\n--- XÁC NHẬN HOÀN TIỀN ĐƠN HÀNG ---");
+        try {
+            System.out.print("Nhập mã đơn hàng cần hoàn tiền: ");
+            int maDon = Integer.parseInt(scanner.nextLine().trim());
+            System.out.print("Mã tham chiếu hoàn tiền (có thể bỏ trống): ");
+            String ref = scanner.nextLine().trim();
+            ThanhToan tt = thanhToanService.xacNhanHoanTien(maDon, ref, STAFF_USER_ID);
+            System.out.printf("✅ Đã xác nhận hoàn tiền đơn #%d (%s VNĐ, Mã GD #%d).\n",
+                maDon, formatTien(tt.getSoTien()), tt.getMaThanhToan());
+        } catch (Exception e) {
+            System.out.println("❌ Xác nhận hoàn tiền thất bại: " + e.getMessage());
+        }
+    }
+
+    private void xemLichSuGiaoDichThanhToan() {
+        System.out.println("\n--- LỊCH SỬ GIAO DỊCH THANH TOÁN ---");
+        List<ThanhToan> list = thanhToanService.layTatCaGiaoDich(STAFF_USER_ID);
+        if (list.isEmpty()) {
+            System.out.println("📭 Chưa có giao dịch nào.");
+            return;
+        }
+        System.out.println("----------------------------------------------------------------------------------------------");
+        System.out.printf("%-5s | %-7s | %-5s | %-12s | %-13s | %-12s | %-16s\n",
+            "ID", "Đơn #", "Loại", "Phương thức", "Số tiền", "Trạng thái", "Thời điểm");
+        System.out.println("----------------------------------------------------------------------------------------------");
+        for (ThanhToan tt : list) {
+            System.out.printf("%-5d | #%-6d | %-5s | %-12s | %13s | %-12s | %-16s\n",
+                tt.getMaThanhToan(), tt.getMaDonHang(), tt.getLoaiGiaoDich(), tt.getPhuongThuc(),
+                formatTien(tt.getSoTien()), tt.getTrangThai(), formatGio(tt.getThoiDiem()));
+        }
     }
 
     private String formatTien(BigDecimal tien) {
