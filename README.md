@@ -11,12 +11,12 @@
 3. [Kiến trúc phân tầng & Luồng dữ liệu (Architecture & Data Flow)](#3-kiến-trúc-phân-tầng--luồng-dữ-liệu-architecture--data-flow)
 4. [Các chức năng đã hoàn thành](#4-các-chức-năng-đã-hoàn-thành)
 5. [Hướng dẫn cài đặt môi trường & Chạy thử](#5-hướng-dẫn-cài-đặt-môi-trường--chạy-thử)
-6. [HƯỚNG DẪN VIẾT TIẾP CODE CHO CÁC MODULE CÒN LẠI](#6-hướng-dẫn-viết-tiếp-code-cho-các-module-còn-lại)
+6. [CÁC MODULE CHỨC NĂNG BỔ SUNG ĐÃ HOÀN THIỆN](#6-hướng-dẫn-viết-tiếp-code-cho-các-module-còn-lại)
    - [Module 1: Đặt hàng & Quản lý đơn hàng (DonHang, ChiTietDonHang) - ĐÃ HOÀN THÀNH](#module-1-đặt-hàng--quản-lý-đơn-hàng-donhang-chitietdonhang)
-   - [Module 2: Mã giảm giá (MaGiamGia)](#module-2-mã-giảm-giá-magiamgia)
-   - [Module 3: Giao dịch thanh toán (ThanhToan)](#module-3-giao-dịch-thanh-toán-thanhtoan)
+   - [Module 2: Mã giảm giá (MaGiamGia) - ĐÃ HOÀN THÀNH](#module-2-mã-giảm-giá-magiamgia)
+   - [Module 3: Giao dịch thanh toán & hoàn tiền (ThanhToan) - ĐÃ HOÀN THÀNH](#module-3-giao-dịch-thanh-toán-thanhtoan)
    - [Module 4: Vận chuyển & Giao hàng (VanChuyen) - ĐÃ HOÀN THÀNH](#module-4-vận-chuyển--giao-hàng-vanchuyen)
-   - [Module 5: Lịch sử tồn kho & Lịch sử trạng thái đơn](#module-5-lịch-sử-tồn-kho--lịch-sử-trạng-thái-đơn)
+   - [Module 5: Lịch sử tồn kho & Lịch sử trạng thái đơn - ĐÃ HOÀN THÀNH](#module-5-lịch-sử-tồn-kho--lịch-sử-trạng-thái-đơn)
 7. [Quy trình 5 bước chuẩn khi cài đặt một tính năng mới](#7-quy-trình-5-bước-chuẩn-khi-cài-đặt-một-tính-năng-mới)
 8. [Các lưu ý kỹ thuật sống còn (Best Practices)](#8-các-lưu-ý-kỹ-thuật-sống-còn-best-practices)
 
@@ -25,7 +25,9 @@
 ## 1. Nguồn tài liệu gốc & Base thiết kế
 
 Toàn bộ mã nguồn được xây dựng bám sát 100% vào các tài liệu đặc tả của nhóm:
-* **`docs/Section_2.6_Data_Modeling_Database_Design.docx`**: Tài liệu đặc tả mô hình dữ liệu, từ điển dữ liệu (Data Dictionary), các yêu cầu phi chức năng (NFR01–NFR06) và các Use Case (UC01–UC20).
+* **`docs/BaoCaoCuoiKy_PTTKYC_Nhom03_DayDu.docx`**: Báo cáo cuối kỳ bản đầy đủ của Nhóm 03 (Đề tài 14).
+* **`docs/HUONG-DAN-PROTOTYPE.md`**: Hướng dẫn khởi chạy prototype web VoltHub kết nối Java API và kịch bản demo.
+* **`docs/Section_2.6_Data_Modeling_Database_Design.docx`**: Tài liệu đặc tả mô hình dữ liệu, từ điển dữ liệu (Data Dictionary), các yêu cầu phi chức năng (NFR-01–NFR-09) và các Use Case (UC01–UC20).
 * **`docs/DataModel_ClassDiagram_ERD.drawio`**: Mô hình lớp khái niệm (Class Diagram gồm 16 classes + 6 enums) và mô hình thực thể liên kết (ERD gồm 14 bảng).
 * **`database/QL_BanLinhKien.sql`**: Script CSDL chuẩn thiết kế cho Microsoft SQL Server 2019+.
 * **`database/QL_BanLinhKien_Data_Sample.sql`**: Dữ liệu mẫu kiểm thử phong phú.
@@ -74,12 +76,13 @@ Dự án áp dụng mô hình phân tầng chuẩn 3 lớp (**3-Tier Architectur
   * `DatabaseConfig`: Đọc cấu hình từ `db.properties`.
   * `DatabaseConnection`: Cung cấp JDBC Connection (hỗ trợ kép cả SQL Server và SQLite).
   * `DatabaseInitializer`: Tự động khởi tạo schema và nạp 10 linh kiện điện tử mẫu ban đầu nếu bảng trống.
-* **`com.linhkien.model`**: Chứa các Entity POJO đại diện cho đối tượng nghiệp vụ theo Class Diagram (`LinhKien`, `DanhMucLinhKien`, `GioHang`, `ChiTietGioHang`, `NguoiDung`, `DonHang`, `ChiTietDonHang`, `VanChuyen`, `LichSuTrangThaiDon`). Mỗi lớp chứa cả các phương thức nghiệp vụ hướng đối tượng thuần túy (`kiemTraTon`, `truTon`, `tinhThanhTien`...).
-* **`com.linhkien.dao`**: Chịu trách nhiệm duy nhất là truy vấn và thao tác dữ liệu qua SQL (`LinhKienDAO`, `GioHangDAO`, `DanhMucDAO`, `NguoiDungDAO`, `DonHangDAO`).
-* **`com.linhkien.service`**: Chứa toàn bộ logic kiểm tra hợp lệ, nghiệp vụ thương mại, cảnh báo tồn kho (`LinhKienService`, `GioHangService`, `DonHangService`).
-* **`com.linhkien.ui`**: Giao diện console tương tác (`ConsoleApp`), menu chọn chức năng, định dạng bảng hiển thị.
-* **`com.linhkien`**: Điểm khởi chạy chương trình (`Main.java`).
-* **`com.linhkien (test)`**: Bộ kiểm thử tự động 54 kiểm tra nghiệp vụ (`AppTest.java`).
+* **`com.linhkien.model`**: Chứa các Entity POJO đại diện cho đối tượng nghiệp vụ theo Class Diagram (`LinhKien`, `DanhMucLinhKien`, `ThongSoKyThuat`, `GioHang`, `ChiTietGioHang`, `NguoiDung`, `DiaChiNhanHang`, `MaGiamGia`, `DonHang`, `ChiTietDonHang`, `ThanhToan`, `VanChuyen`, `LichSuTrangThaiDon`, `LichSuTonKho`). Mỗi lớp chứa cả các phương thức nghiệp vụ hướng đối tượng thuần túy (`kiemTraTon`, `truTon`, `tinhThanhTien`...).
+* **`com.linhkien.dao`**: Chịu trách nhiệm duy nhất là truy vấn và thao tác dữ liệu qua SQL (`LinhKienDAO`, `GioHangDAO`, `DonHangDAO`, `DanhMucDAO`, `NguoiDungDAO`, `DiaChiNhanHangDAO`, `MaGiamGiaDAO`, `ThanhToanDAO`).
+* **`com.linhkien.service`**: Chứa toàn bộ logic kiểm tra hợp lệ, nghiệp vụ thương mại, cảnh báo tồn kho (`LinhKienService`, `GioHangService`, `DonHangService`, `DiaChiService`, `MaGiamGiaService`, `ThanhToanService`).
+* **`com.linhkien.api`**: HTTP REST API server thuần JDK (`ApiServer` và 06 controller: `ProductApiController`, `CartApiController`, `OrderApiController`, `CouponApiController`, `PaymentApiController`, `AccountApiController`) phục vụ giao diện web React `frontend/`.
+* **`com.linhkien.ui`**: Giao diện console tương tác (`ConsoleApp`), menu chọn 25 chức năng (`1–25`), định dạng bảng hiển thị.
+* **`com.linhkien`**: Điểm khởi chạy chương trình Console (`Main.java`).
+* **`com.linhkien (test)`**: Bộ kiểm thử tự động **68 kiểm tra** nghiệp vụ qua 7 nhóm `TEST 1–7` (`AppTest.java`).
 
 ---
 
@@ -130,7 +133,10 @@ CHO_XAC_NHAN --xác nhận--> DANG_DONG_GOI --bàn giao vận chuyển--> DANG_G
 * [x] **Phân quyền** dựa vào `NguoiDung.kiemTraQuyen("BAN_HANG")`: khách không cập nhật được trạng thái, không xem hay hủy được đơn của người khác.
 * Ghi chú thiết kế: bảng `DonHang` còn trạng thái `DA_BAN_GIAO`; luồng hiện tại đi thẳng từ `DANG_DONG_GOI` sang `DANG_GIAO` khi bàn giao, nên không dùng trạng thái này.
 
-### Menu giao diện Console cho phần đặt hàng
+### Menu giao diện Console (25 chức năng chính)
+* `1–6`: Quản lý linh kiện (danh sách, tìm theo ID/SKU/tên, thêm mới, cập nhật, xóa/ngừng bán, cảnh báo tồn thấp).
+* `7–11`: Quản lý giỏ hàng (xem & tính tạm tính, thêm vào giỏ, cập nhật số lượng, xóa dòng, làm trống giỏ).
+
 | Mục | Chức năng | Người dùng |
 | :--- | :--- | :--- |
 | 12 | Đặt hàng từ giỏ hàng | Khách hàng (ID 1) |
@@ -140,6 +146,9 @@ CHO_XAC_NHAN --xác nhận--> DANG_DONG_GOI --bàn giao vận chuyển--> DANG_G
 | 16 | Danh sách đơn hàng, lọc theo trạng thái | Nhân viên bán hàng (ID 2) |
 | 17 | Xem chi tiết đơn hàng bất kỳ | Nhân viên bán hàng (ID 2) |
 | 18 | Cập nhật trạng thái đơn / bàn giao vận chuyển | Nhân viên bán hàng (ID 2) |
+| 19–20 | Điều chỉnh tồn kho & Xem lịch sử biến động tồn kho | Nhân viên kho / Admin (ID 3, 4) |
+| 21–22 | Xem danh sách & Tạo mã giảm giá mới | Admin (ID 4) |
+| 23–25 | Xác nhận thanh toán, hoàn tiền & Xem lịch sử giao dịch | Nhân viên / Admin (ID 2, 4) |
 
 Tài khoản mẫu (mật khẩu 123456): ID 1 khách hàng Nguyễn Văn An, ID 2 nhân viên bán hàng Trần Thị Bích, ID 3 nhân viên kho Lê Hoàng Long, ID 4 quản trị viên.
 
@@ -247,7 +256,9 @@ public class DonHang {
 
 ---
 
-### Module 2: Mã giảm giá (MaGiamGia)
+### Module 2: Mã giảm giá (MaGiamGia) - ĐÃ HOÀN THÀNH
+> Đã cài đặt trong `MaGiamGia`, `MaGiamGiaDAO`, `MaGiamGiaService`, `CouponApiController` và tích hợp menu Console `21–22` (xem `TEST 7` trong `AppTest.java`). Phần mô tả dưới đây là thiết kế gốc để đối chiếu.
+>
 > **Use Case**: UC09 (Áp dụng mã giảm giá), UC17 (Quản lý mã giảm giá).
 
 #### 1. Entity `MaGiamGia.java`:
@@ -283,8 +294,10 @@ public class MaGiamGia {
 
 ---
 
-### Module 3: Giao dịch thanh toán (ThanhToan)
-> **Use Case**: UC20 (Xác nhận thanh toán thủ công COD / Chuyển khoản).
+### Module 3: Giao dịch thanh toán (ThanhToan) - ĐÃ HOÀN THÀNH
+> Đã cài đặt trong `ThanhToan`, `ThanhToanDAO`, `ThanhToanService`, `PaymentApiController` và tích hợp menu Console `23–25` (xem `TEST 7` trong `AppTest.java`). Phần mô tả dưới đây là thiết kế gốc để đối chiếu.
+>
+> **Use Case**: UC20 (Xác nhận thanh toán thủ công COD / Chuyển khoản & Hoàn tiền).
 
 #### 1. Entity `ThanhToan.java`:
 * `maThanhToan`: int
@@ -318,10 +331,10 @@ public class MaGiamGia {
 
 ---
 
-### Module 5: Lịch sử tồn kho & Lịch sử trạng thái đơn
-> Phần ghi `LichSuTonKho` (loại `BAN`, `HOAN_HUY`) và `LichSuTrangThaiDon` đã được cài đặt cùng Module 1. Loại `NHAP` và `DIEU_CHINH` khi điều chỉnh kho thủ công vẫn còn để làm tiếp.
+### Module 5: Lịch sử tồn kho & Lịch sử trạng thái đơn - ĐÃ HOÀN THÀNH
+> Đã cài đặt đầy đủ các loại biến động tồn (`NHAP`, `BAN`, `HOAN_HUY`, `DIEU_CHINH`) qua `LinhKienService.dieuChinhTon` và `LichSuTrangThaiDon` trong `DonHangService`, kèm menu Console `19–20` (xem `TEST 5` trong `AppTest.java`).
 >
-> **Yêu cầu phi chức năng NFR03 (Audit Trail)**: Mọi biến động số lượng tồn và trạng thái đơn đều phải lưu log dấu vết.
+> **Yêu cầu phi chức năng NFR-03 (Audit Trail)**: Mọi biến động số lượng tồn và trạng thái đơn đều phải lưu log dấu vết.
 
 * **`LichSuTonKho`**: Lưu `maLinhKien`, `loaiBienDong` (`'NHAP'`, `'BAN'`, `'HOAN_HUY'`, `'DIEU_CHINH'`), `soLuongThayDoi`, `tonTruoc`, `tonSau`, `maDonHang`, `maNguoiThucHien`, `lyDo`, `thoiDiem`.
 * **`LichSuTrangThaiDon`**: Lưu `maDonHang`, `trangThaiCu`, `trangThaiMoi`, `maNguoiThucHien`, `thoiDiem`, `ghiChu`.
@@ -391,6 +404,11 @@ Khi nhận phân công viết một tính năng mới (ví dụ: Tạo đơn hà
 
 > 🎯 *Chúc nhóm hoàn thành xuất sắc đồ án môn học PTTKYC! Nếu có bất kỳ câu hỏi nào về kiến trúc hoặc luồng code, hãy tham khảo các file mẫu có sẵn: `LinhKienDAO.java`, `GioHangService.java` và `AppTest.java`.*
 
-## Prototype UI + Java API
+## Prototype UI + Java API & Kiểm thử toàn trình
 
-Xem [Hướng dẫn chạy prototype](docs/HUONG-DAN-PROTOTYPE.md). UI React nằm trong frontend/. Chạy backend bằng `scripts/run-api.ps1`, sau đó `bun install` và `bun run dev` (hoặc `npm ci` và `npm run dev`) trong `frontend/`.
+* Xem [Hướng dẫn chạy prototype](docs/HUONG-DAN-PROTOTYPE.md) và [Báo cáo cuối kỳ đầy đủ](docs/BaoCaoCuoiKy_PTTKYC_Nhom03_DayDu.docx).
+* Chạy backend Java API: `powershell -ExecutionPolicy Bypass -File .\scripts\run-api.ps1` (lắng nghe tại `127.0.0.1:8080`).
+* Chạy giao diện React (`frontend/`): `bun install` rồi `bun run dev` (truy cập `http://localhost:8443`).
+* Chạy kiểm thử tự động Java (`68/68` kiểm tra): `powershell -ExecutionPolicy Bypass -File .\scripts\test.ps1`.
+* Chạy kiểm thử API end-to-end: `bun scripts/api-smoke.cjs`.
+* Chạy kiểm thử đơn vị frontend (`5/5` kiểm tra): `bun test --cwd frontend`.
